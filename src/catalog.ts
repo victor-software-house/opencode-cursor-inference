@@ -25,7 +25,7 @@ import {
 	AvailableModelsRequestSchema,
 	AvailableModelsResponseSchema,
 } from '@cursor/gen/aiserver/v1/catalog_pb';
-import { errorMessage, isRecord } from '@cursor/guards';
+import { thrownMessage as errorMessage, isRecord } from '@victor-software-house/pi-type-kit';
 
 const service = 'aiserver.v1.AiService';
 const clientVersion = 'cli-2026.09.02-fa0c06e-lab';

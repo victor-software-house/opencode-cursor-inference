@@ -77,6 +77,10 @@ export default defineConfig({
 			rules: { 'import/no-default-export': 'off', 'no-console': 'off' },
 		},
 		{
+			files: ['tsdown.config.ts'],
+			rules: { 'import/extensions': 'off' },
+		},
+		{
 			files: ['src/plugin.ts', '.changeset/changelog.ts'],
 			rules: { 'import/no-default-export': 'off' },
 		},

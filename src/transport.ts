@@ -23,9 +23,9 @@ import {
 	RunInferenceInvokeModelSchema,
 	RunInferenceServerMessageSchema,
 } from '@cursor/gen/aiserver/v1/inference_pb';
-import { isRecord, omitUndefined } from '@cursor/guards';
 import { inferenceRequestHeaders } from '@cursor/headers';
 import type { CursorMachineIdentity } from '@cursor/identity';
+import { isRecord, omitUndefined } from '@victor-software-house/pi-type-kit';
 
 const CONNECT_COMPRESSION_MIN_BYTES = 1_024;
 const RESPONSE_TIMEOUT_MS = 65_000;

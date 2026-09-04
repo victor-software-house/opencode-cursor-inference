@@ -2,25 +2,39 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
 	type CursorOAuthCredential,
+	createCursorOAuthFlow,
 	cursorOAuthMethod,
 	isCursorOAuthCredential,
+	refreshCursorToken,
 	resolveCursorCredential,
 } from '@cursor/auth';
 import {
 	clearModelCache,
+	type DiscoveredModel,
 	discoverCursorModels,
 	modelsToConfig,
 	readFreshModelCache,
 	writeModelCache,
 } from '@cursor/catalog';
-import { isRecord } from '@cursor/guards';
 import { disposeCursorProviders } from '@cursor/lifecycle';
 import { openCodeCacheDir, openCodeDataDir } from '@cursor/paths';
 import type { Plugin, PluginModule } from '@opencode-ai/plugin';
+import type { Context as V2PluginContext } from '@opencode-ai/plugin-v2/promise/plugin';
+import { define as defineV2 } from '@opencode-ai/plugin-v2/promise/plugin';
+import { Credential } from '@opencode-ai/schema-v2/credential';
+import { Integration } from '@opencode-ai/schema-v2/integration';
+import { Model } from '@opencode-ai/schema-v2/model';
+import { Provider } from '@opencode-ai/schema-v2/provider';
+import { isRecord, omitUndefined } from '@victor-software-house/pi-type-kit';
 
 const providerId = 'cursor';
+const v2ProviderId = Provider.ID.make(providerId);
+const v2IntegrationId = Integration.ID.make(providerId);
+const v2OAuthMethodId = Integration.MethodID.make('browser');
 const backendUrl = 'https://api2.cursor.sh';
 const providerEntry = new URL('./index.mjs', import.meta.url).href;
+const v2ProviderEntry = `aisdk:${providerEntry}`;
+const outputTokenLimit = 64_000;
 
 async function storedCredential(): Promise<CursorOAuthCredential | undefined> {
 	let auth: unknown;
@@ -38,6 +52,29 @@ async function storedCredential(): Promise<CursorOAuthCredential | undefined> {
 	return isCursorOAuthCredential(cursor) ? cursor : undefined;
 }
 
+async function discoverModels(credential: CursorOAuthCredential): Promise<DiscoveredModel[]> {
+	return await discoverCursorModels({ backendUrl, token: credential.access });
+}
+
+function v2OAuthCredential(
+	credential: CursorOAuthCredential,
+	metadata?: Readonly<Record<string, unknown>>,
+): Credential.OAuth {
+	const cursorMetadata = omitUndefined({
+		accountId: credential.accountId,
+		enterpriseUrl: credential.enterpriseUrl,
+	});
+	const mergedMetadata = { ...metadata, ...cursorMetadata };
+	return Credential.OAuth.make({
+		type: 'oauth',
+		methodID: v2OAuthMethodId,
+		access: credential.access,
+		refresh: credential.refresh,
+		expires: credential.expires,
+		...(Object.keys(mergedMetadata).length === 0 ? {} : { metadata: mergedMetadata }),
+	});
+}
+
 export const CursorPlugin: Plugin = async (input) => {
 	const cacheDir = openCodeCacheDir();
 	const persist = async (credential: CursorOAuthCredential): Promise<void> => {
@@ -49,8 +86,7 @@ export const CursorPlugin: Plugin = async (input) => {
 	const refreshModels = async (credential: CursorOAuthCredential): Promise<void> => {
 		try {
 			const resolved = await resolveCursorCredential(credential, persist);
-			const models = await discoverCursorModels({ backendUrl, token: resolved.access });
-			await writeModelCache(cacheDir, models);
+			await writeModelCache(cacheDir, await discoverModels(resolved));
 		} catch {
 			await clearModelCache(cacheDir);
 		}
@@ -96,9 +132,112 @@ export const CursorPlugin: Plugin = async (input) => {
 	};
 };
 
-const CursorPluginModule: PluginModule = {
-	id: 'opencode-cursor-inference',
-	server: CursorPlugin,
+type CursorV2Context = {
+	readonly catalog: Pick<V2PluginContext['catalog'], 'reload' | 'transform'>;
+	readonly integration: Pick<V2PluginContext['integration'], 'connection' | 'transform'>;
 };
+
+async function setupCursorV2(input: CursorV2Context): Promise<() => Promise<void>> {
+	const cacheDir = openCodeCacheDir();
+	let models = (await readFreshModelCache(cacheDir)) ?? [];
+
+	const loadModels = async (credential: CursorOAuthCredential): Promise<void> => {
+		try {
+			models = await discoverModels(credential);
+			await writeModelCache(cacheDir, models);
+		} catch (error) {
+			models = [];
+			await clearModelCache(cacheDir);
+			throw error;
+		}
+	};
+	const refreshModels = async (credential: CursorOAuthCredential): Promise<void> => {
+		try {
+			await loadModels(credential);
+		} finally {
+			await input.catalog.reload();
+		}
+	};
+
+	await input.integration.transform((editor) => {
+		editor.update(v2IntegrationId, (integration) => {
+			integration.name = 'Cursor';
+		});
+		editor.method.update({
+			integrationID: v2IntegrationId,
+			method: {
+				id: v2OAuthMethodId,
+				type: 'oauth',
+				label: 'Cursor account (browser login)',
+			},
+			async authorize() {
+				const flow = createCursorOAuthFlow();
+				return {
+					mode: 'auto',
+					url: flow.url,
+					instructions: flow.instructions,
+					callback: flow.callback().then(async (credential) => {
+						await refreshModels(credential);
+						return v2OAuthCredential(credential);
+					}),
+				};
+			},
+			async refresh(credential) {
+				if (!isCursorOAuthCredential(credential)) {
+					throw new Error('Cursor requires an OpenCode OAuth credential');
+				}
+				const refreshed = await refreshCursorToken(credential);
+				return v2OAuthCredential(refreshed, credential.metadata);
+			},
+		});
+	});
+
+	if (models.length === 0) {
+		const connection = await input.integration.connection.active(v2IntegrationId);
+		const credential =
+			connection === undefined ? undefined : await input.integration.connection.resolve(connection);
+		if (isCursorOAuthCredential(credential)) await loadModels(credential).catch(() => undefined);
+	}
+
+	await input.catalog.transform((catalog) => {
+		catalog.provider.update(v2ProviderId, (provider) => {
+			provider.name = 'Cursor';
+			provider.integrationID = v2IntegrationId;
+			provider.activation = 'auto';
+			provider.package = v2ProviderEntry;
+			provider.settings = { cacheDir };
+		});
+		for (const discovered of models) {
+			catalog.model.update(v2ProviderId, Model.ID.make(discovered.id), (model) => {
+				model.modelID = Model.ID.make(discovered.id);
+				model.name = discovered.name;
+				model.capabilities = {
+					tools: true,
+					input: discovered.images ? ['text', 'image'] : ['text'],
+					output: ['text'],
+				};
+				model.limit = { context: discovered.contextWindow, output: outputTokenLimit };
+				model.settings = {
+					cursorWireModelId: discovered.wireModelId,
+					cursorMaxMode: discovered.maxMode,
+					...(discovered.context === undefined ? {} : { cursorContext: discovered.context }),
+				};
+			});
+		}
+	});
+
+	return async () => {
+		await disposeCursorProviders();
+	};
+}
+
+const CursorV2Plugin = defineV2({
+	id: 'opencode-cursor-inference',
+	setup: setupCursorV2,
+});
+
+const CursorPluginModule: PluginModule = Object.assign(CursorV2Plugin, {
+	server: CursorPlugin,
+});
 
 export default CursorPluginModule;

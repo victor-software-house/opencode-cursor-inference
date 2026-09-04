@@ -6,9 +6,14 @@ import rego.v1
 
 workflow_on := object.get(input, "on", object.get(input, "true", {}))
 release_workflow if input.name == "Release"
+ci_workflow if input.name == "CI"
 release_job := object.get(object.get(input, "jobs", {}), "changesets", {})
 release_steps := object.get(release_job, "steps", [])
 release_permissions := object.get(release_job, "permissions", {})
+release_env := object.get(release_job, "env", {})
+ci_job := object.get(object.get(input, "jobs", {}), "verify", {})
+ci_permissions := object.get(input, "permissions", {})
+ci_env := object.get(ci_job, "env", {})
 
 app_token_steps := [step |
 	some step in release_steps
@@ -76,6 +81,16 @@ deny contains "Release requires pull-requests write" if {
 deny contains "Release requires id-token write" if {
 	release_workflow
 	object.get(release_permissions, "id-token", "") != "write"
+}
+
+deny contains "Release requires packages read" if {
+	release_workflow
+	object.get(release_permissions, "packages", "") != "read"
+}
+
+deny contains "Release package token must use the repository token" if {
+	release_workflow
+	object.get(release_env, "PI_CURSOR_PACKAGES_TOKEN", "") != "${{ github.token }}"
 }
 
 deny contains "Release must mint exactly one repository-scoped App token" if {
@@ -175,4 +190,27 @@ deny contains "Public npm release must not reference NODE_AUTH_TOKEN" if {
 	release_workflow
 	workflow_json := json.marshal(input)
 	contains(workflow_json, "NODE_AUTH_TOKEN")
+}
+
+deny contains "CI must run on every pull request base" if {
+	ci_workflow
+	pull_request := object.get(workflow_on, "pull_request", false)
+	pull_request == false
+}
+
+deny contains "CI pull_request must not filter branches" if {
+	ci_workflow
+	pull_request := object.get(workflow_on, "pull_request", null)
+	is_object(pull_request)
+	object.get(pull_request, "branches", null) != null
+}
+
+deny contains "CI requires packages read" if {
+	ci_workflow
+	object.get(ci_permissions, "packages", "") != "read"
+}
+
+deny contains "CI package token must use the repository token" if {
+	ci_workflow
+	object.get(ci_env, "PI_CURSOR_PACKAGES_TOKEN", "") != "${{ github.token }}"
 }

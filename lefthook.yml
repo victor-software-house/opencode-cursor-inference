@@ -5,6 +5,9 @@ pre-commit:
     format:
       glob: '{,**/}*.{ts,js,mjs,json,jsonc,md,yml,yaml}'
       run: mise run format -- {staged_files}
+      stage_fixed: true
+    secrets:
+      run: mise run hooks:secrets:staged
     lint:
       run: mise run lint
     typecheck:

@@ -22,6 +22,21 @@ Cursor-native tool execution, or MCP projection as a fallback.
 the AI SDK `LanguageModelV3` provider. Do not silently migrate to OpenCode's transitional v2 plugin
 API. Re-evaluate the contract against an exact stable OpenCode version first.
 
+## 2026-09-04 — V2-primary hybrid plugin with a stable-V1 adapter
+
+**Decision:** This supersedes the preceding V1-primary decision. OpenCode V2 beta `19086` is the
+design center, and stable OpenCode `1.18.28` is a compatibility target. Publish one hybrid default
+module whose V2 `setup` and stable-V1 `server` members share auth, catalog, provider, and lifecycle
+primitives. Export that module at both the package root and `./server`; keep `./provider` as the AI
+SDK `LanguageModelV3` entry.
+
+**Consequences:** Both pinned loaders prefer `./server`, so separate pure-V1 and pure-V2 entrypoints
+under root and `./server` would not work. V2 registers OAuth through an integration transform and
+models through a catalog transform. The stable adapter keeps its config and auth hooks but must not
+shape the shared design. Exact loader tests cover both runtimes. Beta plugin/schema helpers and the
+private VSH type helper are build dependencies only: bundle them and prove their package imports are
+absent from the public runtime artifact.
+
 ## 2026-09-04 — OpenCode owns credential persistence
 
 **Decision:** OAuth login and refresh use OpenCode's auth hook and `client.auth.set`. The provider
@@ -84,3 +99,13 @@ release automation, npm bootstrap publication, and registry trust are separately
 
 **Consequences:** The repository is registered in mani and GitHub changes are pushed normally. Do not
 publish, tag, version, or remove `private: true` based only on repository-creation authorization.
+
+## 2026-09-04 — npm bootstrap publication is enabled
+
+**Decision:** This supersedes the preceding pre-release hold. `opencode-cursor-inference@0.0.0` is the
+public bootstrap release. Changesets, npm OIDC trusted publishing, and the Version Packages workflow
+own subsequent versions, tags, and GitHub Releases.
+
+**Consequences:** Every user-visible change carries an appropriate Changeset. Do not run versioning or
+publishing locally, hand-edit release entries, or merge feature or Version Packages pull requests
+without explicit operator approval.

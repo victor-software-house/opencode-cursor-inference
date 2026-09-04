@@ -10,7 +10,6 @@ import {
 	RunInferenceClientMessageSchema,
 	type RunInferenceServerMessage,
 } from '@cursor/gen/aiserver/v1/inference_pb';
-import { isRecord } from '@cursor/guards';
 import { loadCursorMachineIdentity } from '@cursor/identity';
 import { registerCursorShutdown } from '@cursor/lifecycle';
 import {
@@ -21,6 +20,7 @@ import {
 } from '@cursor/request';
 import { CursorResponseMapper, type CursorResponseResult } from '@cursor/response';
 import { CursorInferenceRuntime } from '@cursor/transport';
+import { isRecord } from '@victor-software-house/pi-type-kit';
 
 const backendUrl = 'https://api2.cursor.sh';
 const runtimes = new Set<Promise<CursorInferenceRuntime>>();
@@ -28,7 +28,11 @@ const runtimes = new Set<Promise<CursorInferenceRuntime>>();
 export interface CursorProviderOptions {
 	readonly name?: string;
 	readonly accessToken?: string;
+	readonly apiKey?: string;
 	readonly cacheDir?: string;
+	readonly cursorWireModelId?: string;
+	readonly cursorMaxMode?: boolean;
+	readonly cursorContext?: string;
 }
 
 export interface CursorProvider {
@@ -52,20 +56,34 @@ function requiredSessionId(options: LanguageModelV3CallOptions): string {
 function modelSelection(
 	modelId: string,
 	options: LanguageModelV3CallOptions,
+	defaults?: CursorModelSelection,
 ): CursorModelSelection {
 	const value = options.providerOptions?.['cursor'];
 	if (value !== undefined && !isRecord(value)) {
 		throw new Error('Cursor provider options must be an object');
 	}
-	const wireModelId = value?.['cursorWireModelId'] ?? modelId.replace(/-max$/u, '');
-	const maxMode = value?.['cursorMaxMode'] ?? modelId.endsWith('-max');
-	const context = value?.['cursorContext'];
+	const wireModelId =
+		value?.['cursorWireModelId'] ?? defaults?.wireModelId ?? modelId.replace(/-max$/u, '');
+	const maxMode = value?.['cursorMaxMode'] ?? defaults?.maxMode ?? modelId.endsWith('-max');
+	const context = value?.['cursorContext'] ?? defaults?.context;
 	if (typeof wireModelId !== 'string' || wireModelId === '') {
 		throw new Error('Cursor wire model id must be a non-empty string');
 	}
 	if (typeof maxMode !== 'boolean') throw new Error('Cursor max mode must be a boolean');
 	if (context !== undefined && typeof context !== 'string') {
 		throw new Error('Cursor context parameter must be a string');
+	}
+	return { wireModelId, maxMode, ...(context === undefined ? {} : { context }) };
+}
+
+function boundModelSelection(options: CursorProviderOptions): CursorModelSelection | undefined {
+	const wireModelId = options.cursorWireModelId;
+	if (wireModelId === undefined) return undefined;
+	if (wireModelId === '') throw new Error('Cursor wire model id must be a non-empty string');
+	const maxMode = options.cursorMaxMode ?? false;
+	const context = options.cursorContext;
+	if (context !== undefined && context === '') {
+		throw new Error('Cursor context parameter must be a non-empty string');
 	}
 	return { wireModelId, maxMode, ...(context === undefined ? {} : { context }) };
 }
@@ -82,11 +100,18 @@ class CursorLanguageModel implements LanguageModelV3 {
 	readonly modelId: string;
 	readonly supportedUrls = {};
 	readonly #runtime: () => Promise<CursorInferenceRuntime>;
+	readonly #selection: CursorModelSelection | undefined;
 
-	constructor(provider: string, modelId: string, runtime: () => Promise<CursorInferenceRuntime>) {
+	constructor(
+		provider: string,
+		modelId: string,
+		runtime: () => Promise<CursorInferenceRuntime>,
+		selection?: CursorModelSelection,
+	) {
 		this.provider = provider;
 		this.modelId = modelId;
 		this.#runtime = runtime;
+		this.#selection = selection;
 	}
 
 	async #execute(
@@ -94,7 +119,7 @@ class CursorLanguageModel implements LanguageModelV3 {
 		onPart?: (part: LanguageModelV3StreamPart) => void,
 	): Promise<CursorResponseResult> {
 		const sessionId = requiredSessionId(options);
-		const selection = modelSelection(this.modelId, options);
+		const selection = modelSelection(this.modelId, options, this.#selection);
 		const invocationId = crypto.randomUUID();
 		const mapper = new CursorResponseMapper(allowedTools(options), invocationId);
 		const runRequest = create(RunInferenceClientMessageSchema, {
@@ -170,7 +195,7 @@ export async function shutdownCursorProviders(): Promise<void> {
 registerCursorShutdown(shutdownCursorProviders);
 
 export function createCursor(options: CursorProviderOptions = {}): CursorProvider {
-	const accessToken = options.accessToken;
+	const accessToken = options.accessToken ?? options.apiKey;
 	if (accessToken === undefined || accessToken === '') {
 		throw new Error('Cursor access token is unavailable; run `opencode auth login` for Cursor');
 	}
@@ -178,6 +203,7 @@ export function createCursor(options: CursorProviderOptions = {}): CursorProvide
 	if (cacheDir === undefined || cacheDir === '') {
 		throw new Error('Cursor provider cache directory is unavailable');
 	}
+	const selection = boundModelSelection(options);
 	let runtime: Promise<CursorInferenceRuntime> | undefined;
 	const getRuntime = (): Promise<CursorInferenceRuntime> => {
 		if (runtime !== undefined) return runtime;
@@ -195,10 +221,10 @@ export function createCursor(options: CursorProviderOptions = {}): CursorProvide
 	};
 	const providerName = options.name ?? 'cursor';
 	const provider = Object.assign(
-		(modelId: string) => new CursorLanguageModel(providerName, modelId, getRuntime),
+		(modelId: string) => new CursorLanguageModel(providerName, modelId, getRuntime, selection),
 		{
 			languageModel: (modelId: string) =>
-				new CursorLanguageModel(providerName, modelId, getRuntime),
+				new CursorLanguageModel(providerName, modelId, getRuntime, selection),
 		},
 	) satisfies CursorProvider;
 	return provider;

@@ -1,4 +1,4 @@
-min_version = "2026.7.7"
+min_version = "2026.9.1"
 
 [tools]
 node = "26.8.1"
@@ -7,6 +7,7 @@ lefthook = "2.1.12"
 actionlint = "1.7.12"
 conftest = "0.69.0"
 buf = "1.72.0"
+gitleaks = "8.30.0"
 
 [settings]
 experimental = true
@@ -33,6 +34,7 @@ outputs = [
   "src/gen/aiserver/v1/catalog_pb.ts",
   "src/gen/aiserver/v1/inference_pb.ts",
 ]
+env = { NODE_OPTIONS = "--disable-warning=ExperimentalWarning" }
 run = "buf generate"
 
 [tasks.lint]
@@ -84,24 +86,47 @@ depends = ["gen"]
 run = "bun test test/unit"
 
 [tasks.build]
-description = "Build provider and plugin entries"
+description = "Build and validate provider and hybrid plugin entries"
 depends = ["gen"]
-sources = ["src/**/*.ts", "tsdown.config.ts", "package.json"]
-outputs = ["dist/index.mjs", "dist/index.d.mts", "dist/plugin.mjs", "dist/plugin.d.mts"]
+sources = ["src/**/*.ts", "tsconfig.json", "tsconfig.build.json", "tsdown.config.ts", "package.json"]
+outputs = [
+  "dist/index.mjs",
+  "dist/index.d.mts",
+  "dist/lifecycle.mjs",
+  "dist/plugin.mjs",
+  "dist/plugin.d.mts",
+]
 run = "tsdown"
 
-[tasks."pack:check"]
-description = "Validate package metadata and dry-run contents"
-run = ["publint", "bun pm pack --dry-run"]
+[tasks.pack]
+description = "Dry-run package contents"
+run = "bun pm pack --dry-run"
+
+[tasks."pack:verify"]
+description = "Verify the packed whitelist, artifact boundaries, and public exports"
+depends = ["build"]
+run = "bun scripts/pack-verify.ts"
+
+[tasks."audit:secrets"]
+description = "Scan the working tree and complete Git history for credentials"
+run = [
+  "gitleaks dir --redact --no-banner",
+  "gitleaks git --redact --no-banner",
+]
+
+[tasks."hooks:secrets:staged"]
+description = "Scan the staged diff for credentials"
+run = "gitleaks git --staged --redact --no-banner"
 
 [tasks.smoke]
 description = "Run isolated OpenCode smoke without Cursor network calls"
+depends = ["build"]
 run = "bun scripts/smoke.ts"
 
 [tasks.verify]
-description = "Run CI-safe checks, then build, package checks, and isolated smoke"
-depends = ["lint", "typecheck", "deps", "test:unit"]
-run = [{ task = "build" }, { task = "pack:check" }, { task = "smoke" }]
+description = "Run CI-safe checks, then build, packed-artifact proof, and isolated smoke"
+depends = ["lint", "typecheck", "deps", "test:unit", "audit:secrets"]
+run = [{ task = "build" }, { task = "pack:verify" }, { task = "smoke" }]
 
 [tasks.commitlint]
 description = "Validate a commit message"

@@ -4,20 +4,23 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
+  packages: read
 
 env:
   GIT_CONFIG_COUNT: "1"
   GIT_CONFIG_KEY_0: init.defaultBranch
   GIT_CONFIG_VALUE_0: main
+  MISE_ENV: ci
   MISE_IGNORED_CONFIG_PATHS: ~/.config/mise/config.toml
 
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    env:
+      PI_CURSOR_PACKAGES_TOKEN: ${{ github.token }}
     steps:
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0

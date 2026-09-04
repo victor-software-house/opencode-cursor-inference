@@ -36,8 +36,8 @@ import {
 	RunInferenceRoutingRole,
 	RunInferenceRunRequestSchema,
 } from '@cursor/gen/aiserver/v1/inference_pb';
-import { isRecord, omitUndefined } from '@cursor/guards';
 import { validateCursorImage } from '@cursor/image';
+import { isRecord, omitUndefined } from '@victor-software-house/pi-type-kit';
 
 export interface CursorModelSelection {
 	readonly wireModelId: string;

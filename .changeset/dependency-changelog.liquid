@@ -1,10 +1,4 @@
-{% liquid
-  echo '- Updated dependencies:'
-
-  for dependency in dependencies
-    echo '\n  - '
-    echo dependency.name
-    echo '@'
-    echo dependency.newVersion
-  endfor
--%}
+- Updated dependencies:
+{%- for dependency in dependencies %}
+  - {{ dependency.name }}@{{ dependency.newVersion }}
+{%- endfor %}
