@@ -1,0 +1,35 @@
+// Minimal catalog closure reconstructed from cursor-agent 2026.09.02-fa0c06e.
+// Unknown response fields are intentionally omitted: the provider does not read them.
+syntax = "proto3";
+
+package agent.v1;
+
+message ThinkingDetails {}
+
+message RequestedModel {
+  message ModelParameterValue {
+    string id = 1;
+    string value = 2;
+  }
+}
+
+message ModelDetails {
+  string model_id = 1;
+  optional ThinkingDetails thinking_details = 2;
+  string display_model_id = 3;
+  string display_name = 4;
+  string display_name_short = 5;
+  repeated string aliases = 6;
+  optional bool max_mode = 7;
+}
+
+message GetDefaultModelForCliRequest {}
+message GetDefaultModelForCliResponse {
+  ModelDetails model = 1;
+}
+message GetUsableModelsRequest {
+  repeated string custom_model_ids = 1;
+}
+message GetUsableModelsResponse {
+  repeated ModelDetails models = 1;
+}

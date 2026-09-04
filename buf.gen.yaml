@@ -1,0 +1,24 @@
+version: v2
+
+inputs:
+  - directory: proto
+    types:
+      - agent.v1.GetDefaultModelForCliRequest
+      - agent.v1.GetDefaultModelForCliResponse
+      - agent.v1.GetUsableModelsRequest
+      - agent.v1.GetUsableModelsResponse
+      - aiserver.v1.AvailableModelsRequest
+      - aiserver.v1.AvailableModelsResponse
+      - aiserver.v1.RunInferenceClientMessage
+      - aiserver.v1.RunInferenceServerMessage
+
+managed:
+  enabled: false
+
+plugins:
+  - local: protoc-gen-es
+    out: src/gen
+    opt:
+      - target=ts
+      - import_extension=none
+      - erasable_syntax=true

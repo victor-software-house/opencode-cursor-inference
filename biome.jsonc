@@ -1,0 +1,77 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
+	"assist": {
+		"actions": { "source": { "organizeImports": "on" } }
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"suspicious": {
+				"noExplicitAny": "error",
+				"noImplicitAnyLet": "error",
+				"noConfusingVoidType": "error",
+				"noUnnecessaryConditions": "error"
+			},
+			"style": {
+				"useImportType": "error",
+				"useNodejsImportProtocol": "error",
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"patterns": [
+							{ "group": ["**/index"], "message": "Remove /index suffix." },
+							{ "group": [".", "..", "./**", "../**"], "message": "Use a project path alias." }
+						]
+					}
+				},
+				"useConsistentBuiltinInstantiation": { "level": "error", "fix": "safe" },
+				"useExplicitLengthCheck": { "level": "error", "fix": "safe" },
+				"useConsistentArrayType": { "level": "error", "options": { "syntax": "shorthand" } },
+				"useThrowOnlyError": "error",
+				"noEnum": "error"
+			},
+			"correctness": {
+				"noUnusedImports": { "level": "error", "fix": "safe" },
+				"noUnusedVariables": { "level": "error", "fix": "none" },
+				"noUnusedFunctionParameters": { "level": "error", "fix": "safe" },
+				"noUndeclaredVariables": "error"
+			},
+			"performance": {
+				"noDelete": "error",
+				"noDynamicNamespaceImportAccess": "error"
+			},
+			"complexity": {
+				"noForEach": "error",
+				"noUselessTypeConstraint": "error",
+				"useLiteralKeys": "off"
+			},
+			"nursery": { "noFloatingPromises": "error" }
+		}
+	},
+	"formatter": { "enabled": true, "indentStyle": "tab", "lineWidth": 100 },
+	"javascript": {
+		"globals": ["Bun"],
+		"formatter": { "quoteStyle": "single", "semicolons": "always" }
+	},
+	"overrides": [
+		{
+			"includes": ["src/**", "!src/gen/**"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noUndeclaredDependencies": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["src/gen/**"],
+			"linter": { "enabled": false },
+			"formatter": { "enabled": false },
+			"assist": { "enabled": false }
+		}
+	],
+	"files": { "ignoreUnknown": true },
+	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true }
+}

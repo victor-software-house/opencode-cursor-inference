@@ -1,0 +1,15 @@
+{
+	"$schema": "https://unpkg.com/knip@6/schema.json",
+	"entry": ["test/**/*.test.ts", "scripts/**/*.ts"],
+	"project": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "*.config.ts"],
+	"ignore": ["src/gen/**"],
+	"ignoreDependencies": [
+		"@biomejs/biome",
+		"@bufbuild/protoc-gen-es",
+		"@commitlint/cli",
+		"oxlint",
+		"oxlint-tsgolint"
+	],
+	"ignoreBinaries": ["mise"],
+	"ignoreExportsUsedInFile": true
+}

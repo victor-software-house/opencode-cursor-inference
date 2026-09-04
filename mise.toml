@@ -1,0 +1,96 @@
+min_version = "2026.7.7"
+
+[tools]
+node = "26.8.1"
+bun = "1.4.0"
+lefthook = "2.1.12"
+buf = "1.72.0"
+
+[settings]
+experimental = true
+lockfile = true
+env_cache = true
+env_cache_ttl = "4h"
+fetch_remote_versions_cache = "12h"
+
+[env]
+_.path = { path = ["{{config_root}}/node_modules/.bin"], tools = true }
+
+[deps.bun]
+auto = true
+run = "bun install --frozen-lockfile"
+
+[tasks.gen]
+description = "Generate the selected Cursor protobuf closure"
+sources = ["proto/**/*.proto", "buf.gen.yaml", "buf.yaml"]
+outputs = [
+  "src/gen/agent/v1/catalog_pb.ts",
+  "src/gen/aiserver/v1/catalog_pb.ts",
+  "src/gen/aiserver/v1/inference_pb.ts",
+]
+run = "buf generate"
+
+[tasks.lint]
+description = "Run Biome and oxlint"
+depends = ["gen", "lint:biome", "lint:oxlint"]
+
+[tasks."lint:biome"]
+hide = true
+run = "biome check ."
+
+[tasks."lint:oxlint"]
+hide = true
+depends = ["gen"]
+run = "bun --bun oxlint"
+
+[tasks."lint:fix"]
+description = "Apply Biome and oxlint fixes"
+depends = ["gen"]
+run = ["biome check --write .", "bun --bun oxlint --fix"]
+
+[tasks.format]
+description = "Format repository files"
+run = "biome format --write ."
+
+[tasks.typecheck]
+description = "Type-check source and tests"
+depends = ["gen"]
+run = "tsc --noEmit -p tsconfig.json"
+
+[tasks.deps]
+description = "Check dependencies and dead exports"
+depends = ["gen"]
+run = "knip --no-progress"
+
+[tasks."test:unit"]
+description = "Run deterministic unit and protocol tests"
+depends = ["gen"]
+run = "bun test test/unit"
+
+[tasks.build]
+description = "Build provider and plugin entries"
+depends = ["gen"]
+sources = ["src/**/*.ts", "tsdown.config.ts", "package.json"]
+outputs = ["dist/index.mjs", "dist/index.d.mts", "dist/plugin.mjs", "dist/plugin.d.mts"]
+run = "tsdown"
+
+[tasks."pack:check"]
+description = "Validate package metadata and dry-run contents"
+run = ["publint", "bun pm pack --dry-run"]
+
+[tasks.smoke]
+description = "Run isolated OpenCode smoke without Cursor network calls"
+run = "bun scripts/smoke.ts"
+
+[tasks.verify]
+description = "Run CI-safe checks, then build, package checks, and isolated smoke"
+depends = ["lint", "typecheck", "deps", "test:unit"]
+run = [{ task = "build" }, { task = "pack:check" }, { task = "smoke" }]
+
+[tasks.commitlint]
+description = "Validate a commit message"
+run = "commitlint --edit"
+
+[tasks."lockfile:sync"]
+description = "Verify bun.lock matches package.json"
+run = "bun install --frozen-lockfile --dry-run"

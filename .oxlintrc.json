@@ -1,0 +1,85 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"options": { "typeAware": true },
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error",
+		"perf": "off",
+		"style": "off",
+		"restriction": "off",
+		"pedantic": "off",
+		"nursery": "off"
+	},
+	"plugins": ["typescript", "unicorn", "import", "promise", "oxc"],
+	"rules": {
+		"no-console": "warn",
+		"import/no-default-export": "error",
+		"import/no-cycle": "error",
+		"import/extensions": ["error", "never", { "ignorePackages": true }],
+		"typescript/no-explicit-any": "error",
+		"typescript/no-non-null-assertion": "error",
+		"typescript/consistent-type-imports": "error",
+		"typescript/no-unused-vars": "error",
+		"typescript/no-floating-promises": "error",
+		"typescript/no-misused-promises": "error",
+		"typescript/await-thenable": "error",
+		"typescript/strict-boolean-expressions": "error",
+		"typescript/no-unnecessary-type-assertion": "error",
+		"typescript/no-unsafe-type-assertion": "error",
+		"typescript/no-unsafe-assignment": "error",
+		"typescript/no-unsafe-call": "error",
+		"typescript/no-unsafe-member-access": "error",
+		"typescript/no-unsafe-return": "error",
+		"typescript/no-unsafe-argument": "error",
+		"typescript/no-deprecated": "error",
+		"typescript/consistent-type-assertions": "error",
+		"unicorn/prefer-node-protocol": "error",
+		"unicorn/no-null": "off",
+		"promise/always-return": "error",
+		"promise/no-return-wrap": "error",
+		"@limegrass/import-alias/import-alias": "error"
+	},
+	"overrides": [
+		{
+			"files": ["src/gen/**"],
+			"rules": {
+				"typescript/no-explicit-any": "off",
+				"typescript/no-non-null-assertion": "off",
+				"typescript/no-unsafe-assignment": "off",
+				"typescript/no-unsafe-member-access": "off",
+				"typescript/no-unsafe-type-assertion": "off",
+				"typescript/no-unsafe-call": "off",
+				"typescript/no-unsafe-return": "off",
+				"typescript/no-unsafe-argument": "off",
+				"typescript/strict-boolean-expressions": "off"
+			}
+		},
+		{
+			"files": ["**/*.test.ts", "test/**"],
+			"rules": {
+				"no-console": "off",
+				"import/no-default-export": "off",
+				"unicorn/consistent-function-scoping": "off",
+				"typescript/no-non-null-assertion": "off",
+				"typescript/no-unsafe-assignment": "off",
+				"typescript/no-unsafe-member-access": "off",
+				"typescript/no-unsafe-argument": "off",
+				"typescript/no-unsafe-return": "off",
+				"typescript/no-unsafe-call": "off",
+				"typescript/no-unsafe-type-assertion": "off",
+				"typescript/strict-boolean-expressions": "off"
+			}
+		},
+		{
+			"files": ["**/*.config.ts", "**/*.config.mjs", "scripts/**"],
+			"rules": { "import/no-default-export": "off", "no-console": "off" }
+		},
+		{
+			"files": ["src/plugin.ts"],
+			"rules": { "import/no-default-export": "off" }
+		}
+	],
+	"jsPlugins": [
+		{ "name": "@limegrass/import-alias", "specifier": "@limegrass/eslint-plugin-import-alias" }
+	]
+}
