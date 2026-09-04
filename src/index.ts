@@ -88,12 +88,6 @@ function boundModelSelection(options: CursorProviderOptions): CursorModelSelecti
 	return { wireModelId, maxMode, ...(context === undefined ? {} : { context }) };
 }
 
-function allowedTools(options: LanguageModelV3CallOptions): Set<string> {
-	return new Set(
-		(options.tools ?? []).flatMap((tool) => (tool.type === 'function' ? [tool.name] : [])),
-	);
-}
-
 class CursorLanguageModel implements LanguageModelV3 {
 	readonly specificationVersion = 'v3' as const;
 	readonly provider: string;
@@ -121,7 +115,7 @@ class CursorLanguageModel implements LanguageModelV3 {
 		const sessionId = requiredSessionId(options);
 		const selection = modelSelection(this.modelId, options, this.#selection);
 		const invocationId = crypto.randomUUID();
-		const mapper = new CursorResponseMapper(allowedTools(options), invocationId);
+		const mapper = new CursorResponseMapper(invocationId);
 		const runRequest = create(RunInferenceClientMessageSchema, {
 			message: {
 				case: 'runRequest',

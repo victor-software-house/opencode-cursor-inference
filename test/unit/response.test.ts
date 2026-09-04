@@ -58,7 +58,7 @@ function reasoning(value: string, signature: string | undefined, isFinal = false
 
 describe('Cursor AI SDK response mapping', () => {
 	test('preserves interleaved reasoning, text, tool calls, usage, and final metadata', () => {
-		const mapper = new CursorResponseMapper(new Set(['read']));
+		const mapper = new CursorResponseMapper();
 		const events = [
 			...mapper.handle(reasoning('Need ', undefined)),
 			...mapper.handle(reasoning('file.', 'signed-reasoning', true)),
@@ -122,7 +122,7 @@ describe('Cursor AI SDK response mapping', () => {
 	});
 
 	test('uses final-only response data and keeps opaque reasoning signatures', () => {
-		const mapper = new CursorResponseMapper(new Set(['read']));
+		const mapper = new CursorResponseMapper();
 		mapper.handle(
 			envelope(
 				create(InferenceStreamResponseSchema, {
@@ -172,25 +172,26 @@ describe('Cursor AI SDK response mapping', () => {
 		});
 	});
 
-	test('uses the complete tool frame as authoritative and rejects mismatched deltas', () => {
-		const frame = (args: string, isComplete: boolean) =>
+	test('uses the complete tool frame as authoritative and accepts unnamed argument deltas', () => {
+		const frame = (args: string, isComplete: boolean, toolName = '') =>
 			envelope(
 				create(InferenceStreamResponseSchema, {
 					response: {
 						case: 'toolCallPart',
 						value: create(InferenceToolCallStreamPartSchema, {
 							toolCallId: 'call-1',
-							toolName: 'read',
+							toolName,
 							args,
 							isComplete,
 						}),
 					},
 				}),
 			);
-		const mapper = new CursorResponseMapper(new Set(['read']));
+		const mapper = new CursorResponseMapper();
+		mapper.handle(frame('', false, 'read'));
 		mapper.handle(frame('{"path":', false));
 		mapper.handle(frame('"README.md"}', false));
-		mapper.handle(frame('{"path":"README.md"}', true));
+		mapper.handle(frame('{"path":"README.md"}', true, 'read'));
 		expect(mapper.finish().result.content).toContainEqual({
 			type: 'tool-call',
 			toolCallId: 'call-1',
@@ -198,15 +199,16 @@ describe('Cursor AI SDK response mapping', () => {
 			input: '{"path":"README.md"}',
 		});
 
-		const mismatch = new CursorResponseMapper(new Set(['read']));
+		const mismatch = new CursorResponseMapper();
+		mismatch.handle(frame('', false, 'read'));
 		mismatch.handle(frame('{"path":"other"}', false));
-		expect(() => mismatch.handle(frame('{"path":"README.md"}', true))).toThrow(
+		expect(() => mismatch.handle(frame('{"path":"README.md"}', true, 'read'))).toThrow(
 			'argument stream does not match completion',
 		);
 	});
 
 	test('maps an output limit with partial content to length', () => {
-		const mapper = new CursorResponseMapper(new Set());
+		const mapper = new CursorResponseMapper();
 		mapper.handle(text('partial', true));
 		mapper.handle(
 			envelope(
@@ -225,24 +227,29 @@ describe('Cursor AI SDK response mapping', () => {
 		expect(mapper.finish().result.finishReason.unified).toBe('length');
 	});
 
-	test('rejects unadvertised tools', () => {
-		const mapper = new CursorResponseMapper(new Set());
-		expect(() =>
-			mapper.handle(
-				envelope(
-					create(InferenceStreamResponseSchema, {
-						response: {
-							case: 'toolCallPart',
-							value: create(InferenceToolCallStreamPartSchema, {
-								toolCallId: 'call-1',
-								toolName: 'shell',
-								args: '{}',
-								isComplete: true,
-							}),
-						},
-					}),
-				),
+	test('passes an unavailable tool name to OpenCode for host-owned handling', () => {
+		const mapper = new CursorResponseMapper();
+		const events = mapper.handle(
+			envelope(
+				create(InferenceStreamResponseSchema, {
+					response: {
+						case: 'toolCallPart',
+						value: create(InferenceToolCallStreamPartSchema, {
+							toolCallId: 'call-1',
+							toolName: 'unavailable_tool',
+							args: '{}',
+							isComplete: true,
+						}),
+					},
+				}),
 			),
-		).toThrow("unknown tool 'shell'");
+		);
+		expect(events).toContainEqual({
+			type: 'tool-call',
+			toolCallId: 'call-1',
+			toolName: 'unavailable_tool',
+			input: '{}',
+		});
+		expect(mapper.finish().result.finishReason.unified).toBe('tool-calls');
 	});
 });

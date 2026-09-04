@@ -3,6 +3,7 @@ import {
 	type CursorOAuthCredential,
 	createCursorAuthRequest,
 	cursorTokenExpiry,
+	isCursorOAuthCredential,
 	pollCursorAuth,
 	resolveCursorCredential,
 } from '@cursor/auth';
@@ -44,6 +45,19 @@ describe('Cursor OpenCode OAuth', () => {
 			refresh: 'refresh-token',
 			expires: 2_000_000_000_000,
 		});
+	});
+
+	test('accepts stable OpenCode Schema.Class OAuth instances', () => {
+		class OpenCodeOAuth {
+			readonly type = 'oauth';
+			readonly access = token(2_000_000_000);
+			readonly refresh = 'refresh-token';
+			readonly expires = 2_000_000_000_000;
+		}
+
+		const credential: unknown = new OpenCodeOAuth();
+		expect(Object.getPrototypeOf(credential)).toBe(OpenCodeOAuth.prototype);
+		expect(isCursorOAuthCredential(credential)).toBe(true);
 	});
 
 	test('validates JWT expiry and leaves fresh credentials in OpenCode ownership', async () => {

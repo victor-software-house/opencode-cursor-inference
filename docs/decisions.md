@@ -10,8 +10,11 @@ tool declaration, permission checks, tool execution, continuation, session lifec
 compaction, and transcript.
 
 **Consequences:** The provider maps one AI SDK model call to one correlated `RunInference`
-invocation. It returns tool calls to OpenCode and never executes them. Do not add `AgentService/Run`,
-Cursor-native tool execution, or MCP projection as a fallback.
+invocation. It returns tool calls to OpenCode and never executes them. It does not reject a structurally
+valid call merely because the returned name is absent from the advertised set; OpenCode owns lookup,
+unavailable-tool and invalid-argument results, and continuation. The provider still rejects transport
+corruption such as a missing call ID or one call changing identity across stream frames. Do not add
+`AgentService/Run`, Cursor-native tool execution, or MCP projection as a fallback.
 
 ## 2026-09-04 — Classic plugin plus AI SDK LanguageModelV3
 

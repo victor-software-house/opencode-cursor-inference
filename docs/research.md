@@ -18,6 +18,9 @@ Verified against OpenCode documentation and the `v1.18.27` source tag:
 - OpenCode executes model-emitted tool calls and sends a later provider call containing tool results.
 - OpenCode supplies session affinity in `x-session-affinity` and `X-Session-Id` request headers.
 - Plugin disposal hooks run during instance teardown.
+- Stable `v1.18.28` decodes `auth.json` entries through its `Auth.Oauth` Effect `Schema.Class` before
+  passing them to a plugin auth loader. The loader therefore receives a structurally valid OAuth
+  class instance, not necessarily a plain object.
 - Isolated HOME and XDG directories are sufficient for a local plugin/provider smoke test.
 
 The stable `1.18.27` config hook has no auth accessor. That limitation motivates the narrowly scoped
@@ -67,6 +70,9 @@ Observed behavior used here:
   tool results.
 - Responses can stream text, reasoning, partial tool arguments, usage, final response information,
   provider metadata, nested invocation identity, and structured errors.
+- A streamed tool call names the tool on its opening frame, may omit the name on intermediate argument
+  frames, and names it again on the complete frame. The call ID correlates all frames; an omitted
+  intermediate name inherits the opening identity.
 - Reasoning can include signatures or opaque redacted data needed for continuation.
 - Cursor's selected catalog surface consists of `AvailableModels`, `GetUsableModels`, and
   `GetDefaultModelForCli`.
@@ -121,9 +127,12 @@ The following choices are design inferences from the evidence sets:
 4. provider and hybrid plugin entries build, private/beta build-helper imports are absent from the
    runtime artifacts, and package metadata is valid;
 5. OpenCode V2 beta `19086` activates the hybrid plugin without Cursor network access;
-6. stable OpenCode `1.18.28` loads the hybrid plugin and lists a seeded Cursor model; and
-7. an isolated synthetic stable provider emits a tool call, OpenCode executes it, and the next
-   provider call contains the host-owned result.
+6. both V2 beta `19086` and stable OpenCode `1.18.28` execute a synthetic host tool and continue with
+   its result; and
+7. V2 returns an unavailable-tool result to the model and continues instead of requiring the provider
+   to authorize the model-selected name.
 
-The loop does not prove a live Cursor account, current service compatibility, billing behavior, or a
-paid model response. Those remain deliberately unverified without explicit authorization.
+The deterministic loop does not prove a live Cursor account, current service compatibility, billing
+behavior, or a paid model response. Those remain outside `mise run verify`; `mise run test:live` is
+an explicit local-only proof for text continuation, a real tool call, host result continuation,
+provider restart, and resumed history.

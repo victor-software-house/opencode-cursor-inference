@@ -25,24 +25,40 @@ const v2CacheHome = join(directory, 'cache-v2');
 const v2DataHome = join(directory, 'data-v2');
 const v2Home = join(directory, 'home-v2');
 const v2Plugin = join(directory, 'plugin-v2');
+const v2Fixture = join(directory, 'fixture-v2');
 const workspace = join(directory, 'workspace');
 const proof = join(workspace, 'proof.txt');
 const log = join(directory, 'provider.jsonl');
+const v2Log = join(directory, 'provider-v2.jsonl');
+const fixtureAccess = `header.${Buffer.from(JSON.stringify({ exp: 2_000_000_000 })).toString('base64url')}.signature`;
 
 try {
 	await Promise.all([
 		mkdir(join(configHome, 'opencode'), { recursive: true }),
 		mkdir(join(cacheHome, 'opencode', 'cursor-inference'), { recursive: true }),
-		mkdir(dataHome, { recursive: true }),
+		mkdir(join(dataHome, 'opencode'), { recursive: true }),
 		mkdir(home, { recursive: true }),
 		mkdir(join(v2ConfigHome, 'opencode'), { recursive: true }),
 		mkdir(join(v2CacheHome, 'opencode', 'cursor-inference'), { recursive: true }),
 		mkdir(v2DataHome, { recursive: true }),
 		mkdir(v2Home, { recursive: true }),
 		mkdir(v2Plugin, { recursive: true }),
+		mkdir(v2Fixture, { recursive: true }),
 		mkdir(workspace, { recursive: true }),
 	]);
 	await writeFile(proof, 'verified\n');
+	await writeFile(
+		join(dataHome, 'opencode', 'auth.json'),
+		`${JSON.stringify({
+			cursor: {
+				type: 'oauth',
+				access: fixtureAccess,
+				refresh: 'fixture-refresh',
+				expires: 2_000_000_000_000,
+			},
+		})}\n`,
+		{ mode: 0o600 },
+	);
 	await $`git init -q ${workspace}`.quiet();
 	await writeFile(
 		join(cacheHome, 'opencode', 'cursor-inference', 'models.json'),
@@ -152,9 +168,26 @@ try {
 		})}\n`,
 	);
 	await symlink(join(root, 'node_modules'), join(v2Plugin, 'node_modules'), 'dir');
+	await Promise.all([
+		cp(join(root, 'test', 'fixtures', 'opencode-v2-plugin.mjs'), join(v2Fixture, 'server.mjs')),
+		cp(
+			join(root, 'test', 'fixtures', 'opencode-provider.mjs'),
+			join(v2Fixture, 'opencode-provider.mjs'),
+		),
+		symlink(join(root, 'node_modules'), join(v2Fixture, 'node_modules'), 'dir'),
+	]);
+	await writeFile(
+		join(v2Fixture, 'package.json'),
+		`${JSON.stringify({
+			name: 'opencode-cursor-v2-fixture',
+			version: '0.0.0',
+			type: 'module',
+			exports: { '.': './server.mjs', './server': './server.mjs' },
+		})}\n`,
+	);
 	await writeFile(
 		join(v2ConfigHome, 'opencode', 'opencode.json'),
-		`${JSON.stringify({ plugins: [v2Plugin] })}\n`,
+		`${JSON.stringify({ plugins: [v2Plugin, v2Fixture] })}\n`,
 	);
 	const v2Environment = {
 		...process.env,
@@ -162,6 +195,8 @@ try {
 		XDG_CONFIG_HOME: v2ConfigHome,
 		XDG_CACHE_HOME: v2CacheHome,
 		XDG_DATA_HOME: v2DataHome,
+		OPENCODE_CURSOR_SMOKE_LOG: v2Log,
+		OPENCODE_CURSOR_SMOKE_FILE: proof,
 	};
 	const v2 = parseJson(
 		await $`opencode2 api --standalone v2.plugin.check --data ${'{}'}`
@@ -183,8 +218,36 @@ try {
 			`OpenCode V2 did not activate the built hybrid Cursor plugin: ${JSON.stringify(cursorV2 ?? v2)}`,
 		);
 	}
+	const v2Read =
+		await $`opencode2 run --standalone --auto --model smoke/v2-fixture ${'Use the read tool once.'}`
+			.env(v2Environment)
+			.cwd(workspace)
+			.quiet()
+			.text();
+	if (!v2Read.includes('OPENCODE_CURSOR_SMOKE_OK')) {
+		throw new Error('OpenCode V2 did not continue after its host-executed synthetic tool call');
+	}
+	const v2Unknown =
+		await $`opencode2 run --standalone --auto --model smoke/unknown ${'Call the available tool.'}`
+			.env(v2Environment)
+			.cwd(workspace)
+			.quiet()
+			.text();
+	if (!v2Unknown.includes('OPENCODE_CURSOR_UNKNOWN_TOOL_OK')) {
+		throw new Error('OpenCode V2 did not continue after its unavailable-tool result');
+	}
+	const v2Calls = await readFile(v2Log, 'utf8');
+	if (
+		!v2Calls.includes('"modelId":"unknown"') ||
+		!v2Calls.includes('"toolName":"unavailable_tool"') ||
+		!v2Calls.includes('"type":"tool-result"') ||
+		!v2Calls.includes('Unknown tool: unavailable_tool') ||
+		!v2Calls.includes('verified')
+	) {
+		throw new Error('OpenCode V2 did not return its unavailable-tool result to the provider');
+	}
 	console.log(
-		'OpenCode V2 beta 19086 and stable V1 1.18.28 loaded the hybrid Cursor plugin; V1 completed host tool continuation.',
+		'OpenCode V2 beta 19086 and stable V1 1.18.28 loaded the hybrid Cursor plugin; both completed host tool continuation and V2 returned unavailable-tool errors to the model.',
 	);
 } finally {
 	await rm(directory, { recursive: true, force: true });

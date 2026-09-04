@@ -23,7 +23,10 @@ function model(modelId) {
 			return { content, finishReason, usage, warnings: [] };
 		},
 		async doStream(options) {
-			appendFileSync(process.env.OPENCODE_CURSOR_SMOKE_LOG, `${JSON.stringify(options.prompt)}\n`);
+			appendFileSync(
+				process.env.OPENCODE_CURSOR_SMOKE_LOG,
+				`${JSON.stringify({ modelId, prompt: options.prompt })}\n`,
+			);
 			const continued = options.prompt.some(
 				(message) =>
 					Array.isArray(message.content) &&
@@ -34,12 +37,12 @@ function model(modelId) {
 					start(controller) {
 						controller.enqueue({ type: 'stream-start', warnings: [] });
 						if (continued) {
+							const marker =
+								modelId === 'unknown'
+									? 'OPENCODE_CURSOR_UNKNOWN_TOOL_OK'
+									: 'OPENCODE_CURSOR_SMOKE_OK';
 							controller.enqueue({ type: 'text-start', id: 'text-1' });
-							controller.enqueue({
-								type: 'text-delta',
-								id: 'text-1',
-								delta: 'OPENCODE_CURSOR_SMOKE_OK',
-							});
+							controller.enqueue({ type: 'text-delta', id: 'text-1', delta: marker });
 							controller.enqueue({ type: 'text-end', id: 'text-1' });
 							controller.enqueue({
 								type: 'finish',
@@ -47,14 +50,19 @@ function model(modelId) {
 								usage,
 							});
 						} else {
-							const input = JSON.stringify({ filePath: process.env.OPENCODE_CURSOR_SMOKE_FILE });
-							controller.enqueue({ type: 'tool-input-start', id: 'call-1', toolName: 'read' });
+							const unknown = modelId === 'unknown';
+							const toolName = unknown ? 'unavailable_tool' : 'read';
+							const file = process.env.OPENCODE_CURSOR_SMOKE_FILE;
+							const input = unknown
+								? '{}'
+								: JSON.stringify(modelId === 'v2-fixture' ? { path: file } : { filePath: file });
+							controller.enqueue({ type: 'tool-input-start', id: 'call-1', toolName });
 							controller.enqueue({ type: 'tool-input-delta', id: 'call-1', delta: input });
 							controller.enqueue({ type: 'tool-input-end', id: 'call-1' });
 							controller.enqueue({
 								type: 'tool-call',
 								toolCallId: 'call-1',
-								toolName: 'read',
+								toolName,
 								input,
 							});
 							controller.enqueue({
