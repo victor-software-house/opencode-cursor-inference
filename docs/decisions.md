@@ -76,10 +76,11 @@ source and tests together, and keep observed facts separate from design inferenc
 fixtures. A paid or authenticated live inference check requires explicit operator authorization and
 must remain outside CI.
 
-## 2026-09-04 — Publication remains disabled
+## 2026-09-04 — npm publication remains disabled
 
-**Decision:** Keep version `0.0.0` and `private: true` until repository creation, release design,
-package publication, and any remote are separately authorized.
+**Decision:** The public GitHub repository is
+`victor-software-house/opencode-cursor-inference`. Keep version `0.0.0` and `private: true` until
+release automation, npm bootstrap publication, and registry trust are separately authorized.
 
-**Consequences:** Do not create a remote, publish, tag, version, or add release automation based only
-on implementation approval. Workspace mani registration waits for a durable remote URL.
+**Consequences:** The repository is registered in mani and GitHub changes are pushed normally. Do not
+publish, tag, version, or remove `private: true` based only on repository-creation authorization.

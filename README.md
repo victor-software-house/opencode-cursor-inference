@@ -1,5 +1,10 @@
 # OpenCode Cursor Inference
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.svg">
+  <img src="docs/banner.svg" alt="opencode-cursor — /models in OpenCode · unofficial Cursor managed inference">
+</picture>
+
 Unofficial OpenCode plugin and AI SDK provider for Cursor managed inference over
 `aiserver.v1.InferenceService/RunInference`.
 
@@ -14,9 +19,10 @@ compaction, and transcript.
 
 ## Status
 
-The package is currently unreleased (`0.0.0` and `private: true`). The implementation and local
-verification path are available for review, but there is no published package or supported remote
-installation yet.
+Source is public at
+[`victor-software-house/opencode-cursor-inference`](https://github.com/victor-software-house/opencode-cursor-inference).
+The npm package is currently unreleased (`0.0.0` and `private: true`). The implementation and local
+verification path are available for review, but there is no published npm installation yet.
 
 Verified compatibility target: OpenCode `1.18.27`, Node.js 24 or later, and Bun 1.4 for development.
 

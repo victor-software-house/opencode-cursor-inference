@@ -4,6 +4,14 @@
 	"description": "Unofficial Cursor managed inference provider for OpenCode over InferenceService/RunInference.",
 	"author": "Victor Araújo",
 	"license": "MIT",
+	"homepage": "https://github.com/victor-software-house/opencode-cursor-inference#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/victor-software-house/opencode-cursor-inference.git"
+	},
+	"bugs": {
+		"url": "https://github.com/victor-software-house/opencode-cursor-inference/issues"
+	},
 	"private": true,
 	"type": "module",
 	"sideEffects": false,
@@ -26,7 +34,10 @@
 	},
 	"files": [
 		"dist",
-		"docs",
+		"docs/banner.svg",
+		"docs/banner-dark.svg",
+		"docs/decisions.md",
+		"docs/research.md",
 		"README.md",
 		"LICENSE"
 	],
