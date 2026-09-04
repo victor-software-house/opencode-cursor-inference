@@ -24,6 +24,24 @@ provider boundary, protocol, auth, catalog, or lifecycle.
 - `mise run verify` is the complete local gate. Keep tests deterministic and temporary directories
   automatically cleaned up.
 - Tasks live in `mise.toml`; `package.json` contains only the publish safety hook.
-- Do not create a remote, publish, version, tag, release, or remove `private: true` without explicit
-  authorization.
 - Conventional Commits. No AI attribution.
+
+## Release discipline
+
+Versioning is changeset-driven. CI owns version bumps, publishing, tags, and GitHub Releases.
+The registry is public npm with OIDC trusted publishing.
+
+1. Author a `.changeset/*.md` file for each user-visible change. Default to `patch`.
+2. Commit and push it to `main`, or merge it through a pull request.
+3. `changesets/action` opens or updates the **Version Packages** pull request using the
+   `vsh-changeset-version` GitHub App.
+4. Merging that pull request runs `release:oidc`, publishes with Bun, and creates the exact-version
+   tag and GitHub Release.
+
+- Never run `changeset version` or `changeset publish` locally.
+- Never hand-edit `package.json` versions or `CHANGELOG.md` release entries.
+- Public npm CI uses `bun-release` and `BUN_CONFIG_TOKEN`; never add `NPM_TOKEN`,
+  `NODE_AUTH_TOKEN`, a repository `.npmrc`, or another publishing secret.
+- The initial published version is `0.0.0`; the first changeset is a patch to `0.0.1`.
+- Never use a `major` changeset while the package is on `0.x`. `minor` requires a notable new
+  public surface.

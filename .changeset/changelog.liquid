@@ -1,0 +1,38 @@
+{% liquid
+  echo '- '
+  echo release.summary
+
+  if release.pullRequest
+    echo ' ([#'
+    echo release.pullRequest.number
+    echo ']('
+    echo release.pullRequest.url
+    echo ')'
+
+    if release.pullRequest.externalAuthor
+      echo ' by [@'
+      echo release.pullRequest.user
+      echo ']('
+      echo release.pullRequest.userUrl
+      echo ')'
+    endif
+
+    echo ').'
+  elsif release.commit
+    echo ' ([`'
+    echo release.commit.short
+    echo '`]('
+    echo release.commit.url
+    echo ')).'
+  elsif release.summaryHasTerminal == false
+    echo '.'
+  endif
+
+  for continuation in release.continuations
+    echo '\n'
+    unless continuation == empty
+      echo '  '
+      echo continuation
+    endunless
+  endfor
+%}

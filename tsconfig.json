@@ -27,7 +27,8 @@
 		"forceConsistentCasingInFileNames": true,
 		"paths": {
 			"@cursor/*": ["./src/*"],
-			"@test/*": ["./test/*"]
+			"@test/*": ["./test/*"],
+			"@repo/package.json": ["./package.json"]
 		}
 	},
 	"exclude": ["node_modules", "dist"]

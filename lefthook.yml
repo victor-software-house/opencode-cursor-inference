@@ -23,5 +23,7 @@ pre-push:
   commands:
     lockfile-sync:
       run: mise run --no-deps lockfile:sync
+    version-guard:
+      run: mise run --no-deps version-guard
     verify:
       run: mise run verify

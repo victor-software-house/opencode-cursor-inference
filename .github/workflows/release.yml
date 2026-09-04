@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: main
+  MISE_IGNORED_CONFIG_PATHS: ~/.config/mise/config.toml
+
+jobs:
+  changesets:
+    if: vars.NPM_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: false
+          cache: true
+
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install mise tools
+        run: mise install --locked
+
+      - name: Pre-publish gates
+        run: mise run verify
+
+      - name: Pack dry-run
+        run: mise run pack:check
+
+      - name: Mint Version Packages token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.CHANGESET_VERSION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGESET_VERSION_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Create Version Packages PR
+        id: changesets
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          version: mise run version
+          commit: "chore(release): version packages"
+          title: "chore(release): version packages"
+          github-token: ${{ steps.app-token.outputs.token }}
+          setupGitUser: false
+          commitMode: github-api
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Mint npm OIDC token
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: mise run release:oidc
+
+      - name: Publish
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: mise run release
+
+      - name: Tag and create GitHub Release
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: mise run release:tags
+        env:
+          GH_TOKEN: ${{ github.token }}

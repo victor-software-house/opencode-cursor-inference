@@ -12,7 +12,6 @@
 	"bugs": {
 		"url": "https://github.com/victor-software-house/opencode-cursor-inference/issues"
 	},
-	"private": true,
 	"type": "module",
 	"sideEffects": false,
 	"main": "./dist/plugin.mjs",
@@ -39,6 +38,7 @@
 		"docs/decisions.md",
 		"docs/research.md",
 		"README.md",
+		"CHANGELOG.md",
 		"LICENSE"
 	],
 	"scripts": {
@@ -57,6 +57,10 @@
 			"name": "bun",
 			"version": ">=1.4.0 <2.0.0"
 		}
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org"
 	},
 	"keywords": [
 		"opencode",
@@ -81,13 +85,19 @@
 	"devDependencies": {
 		"@biomejs/biome": "2.5.12",
 		"@bufbuild/protoc-gen-es": "2.14.1",
+		"@changesets/cli": "3.0.1",
+		"@changesets/get-github-info": "0.8.0",
+		"@changesets/types": "7.0.0",
 		"@commitlint/cli": "21.2.2",
 		"@commitlint/config-conventional": "21.2.2",
 		"@limegrass/eslint-plugin-import-alias": "1.6.1",
 		"@opencode-ai/plugin": "1.18.27",
 		"@types/bun": "1.4.0",
 		"@types/node": "26.4.1",
+		"bun-release": "0.0.3",
+		"dedent": "1.7.2",
 		"knip": "6.34.0",
+		"liquidjs": "10.29.0",
 		"oxlint": "1.81.0",
 		"oxlint-tsgolint": "7.0.2001",
 		"publint": "0.3.24",

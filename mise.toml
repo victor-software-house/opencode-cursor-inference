@@ -4,6 +4,8 @@ min_version = "2026.7.7"
 node = "26.8.1"
 bun = "1.4.0"
 lefthook = "2.1.12"
+actionlint = "1.7.12"
+conftest = "0.69.0"
 buf = "1.72.0"
 
 [settings]
@@ -20,6 +22,9 @@ _.path = { path = ["{{config_root}}/node_modules/.bin"], tools = true }
 auto = true
 run = "bun install --frozen-lockfile"
 
+[hooks]
+postinstall = "lefthook install"
+
 [tasks.gen]
 description = "Generate the selected Cursor protobuf closure"
 sources = ["proto/**/*.proto", "buf.gen.yaml", "buf.yaml"]
@@ -31,8 +36,8 @@ outputs = [
 run = "buf generate"
 
 [tasks.lint]
-description = "Run Biome and oxlint"
-depends = ["gen", "lint:biome", "lint:oxlint"]
+description = "Run Biome, oxlint, actionlint, and release policy"
+depends = ["gen", "lint:biome", "lint:oxlint", "lint:actions", "lint:conftest"]
 
 [tasks."lint:biome"]
 hide = true
@@ -42,6 +47,17 @@ run = "biome check ."
 hide = true
 depends = ["gen"]
 run = "bun --bun oxlint"
+
+[tasks."lint:actions"]
+hide = true
+run = "actionlint"
+
+[tasks."lint:conftest"]
+hide = true
+run = [
+  "conftest verify",
+  "conftest test --all-namespaces .github/workflows/*.yml",
+]
 
 [tasks."lint:fix"]
 description = "Apply Biome and oxlint fixes"
@@ -90,6 +106,14 @@ run = [{ task = "build" }, { task = "pack:check" }, { task = "smoke" }]
 [tasks.commitlint]
 description = "Validate a commit message"
 run = "commitlint --edit"
+
+[tasks."changeset:status"]
+description = "Check pending changesets against main"
+run = "changeset status --since=origin/main"
+
+[tasks.version]
+description = "Generate Changesets version PR changes"
+run = ["changeset version", "bun install --lockfile-only"]
 
 [tasks."lockfile:sync"]
 description = "Verify bun.lock matches package.json"

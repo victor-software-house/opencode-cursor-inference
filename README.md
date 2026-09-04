@@ -21,8 +21,8 @@ compaction, and transcript.
 
 Source is public at
 [`victor-software-house/opencode-cursor-inference`](https://github.com/victor-software-house/opencode-cursor-inference).
-The npm package is currently unreleased (`0.0.0` and `private: true`). The implementation and local
-verification path are available for review, but there is no published npm installation yet.
+The package is released through a Changesets-managed public npm pipeline with OIDC trusted
+publishing.
 
 Verified compatibility target: OpenCode `1.18.27`, Node.js 24 or later, and Bun 1.4 for development.
 
@@ -47,7 +47,7 @@ OpenCode executes tools and continues with results
 The provider does not execute Cursor-native tools, project MCP servers, shell commands, or an agent
 loop. Unsupported request controls and response capabilities fail closed.
 
-## Installation after release
+## Installation
 
 Add the plugin to `opencode.json`:
 
@@ -124,4 +124,6 @@ boundary and [research](docs/research.md) for evidence classes.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT.
+
+See [LICENSE](LICENSE).
