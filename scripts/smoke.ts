@@ -1,4 +1,5 @@
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -14,12 +15,45 @@ function unknownArray(value: unknown): unknown[] {
 	return Array.isArray(value) ? value : [];
 }
 
+async function availablePort(): Promise<number> {
+	const reservation = createServer();
+	await new Promise<void>((done, reject) => {
+		reservation.once('error', reject);
+		reservation.listen(0, '127.0.0.1', done);
+	});
+	const address = reservation.address();
+	if (address === null || typeof address === 'string')
+		throw new Error('Could not reserve a TCP port');
+	await new Promise<void>((done, reject) =>
+		reservation.close((error) => (error ? reject(error) : done())),
+	);
+	return address.port;
+}
+
+async function waitForServer(url: string, server: Bun.Subprocess): Promise<void> {
+	const deadline = Date.now() + 10_000;
+	while (Date.now() < deadline) {
+		if (server.exitCode !== null)
+			throw new Error(`OpenCode V2 server exited with ${String(server.exitCode)}`);
+		try {
+			await fetch(`${url}/api/health`);
+			return;
+		} catch {}
+		await Bun.sleep(50);
+	}
+	throw new Error('OpenCode V2 server did not become ready');
+}
+
 const root = resolve(import.meta.dir, '..');
 const directory = await mkdtemp(join(tmpdir(), 'opencode-cursor-smoke-'));
 const configHome = join(directory, 'config');
 const cacheHome = join(directory, 'cache');
 const dataHome = join(directory, 'data');
 const home = join(directory, 'home');
+const stableAutoConfigHome = join(directory, 'config-v1-auto');
+const stableAutoCacheHome = join(directory, 'cache-v1-auto');
+const stableAutoDataHome = join(directory, 'data-v1-auto');
+const stableAutoHome = join(directory, 'home-v1-auto');
 const v2ConfigHome = join(directory, 'config-v2');
 const v2CacheHome = join(directory, 'cache-v2');
 const v2DataHome = join(directory, 'data-v2');
@@ -38,6 +72,10 @@ try {
 		mkdir(join(cacheHome, 'opencode', 'cursor-inference'), { recursive: true }),
 		mkdir(join(dataHome, 'opencode'), { recursive: true }),
 		mkdir(home, { recursive: true }),
+		mkdir(join(stableAutoConfigHome, 'opencode'), { recursive: true }),
+		mkdir(stableAutoCacheHome, { recursive: true }),
+		mkdir(stableAutoDataHome, { recursive: true }),
+		mkdir(stableAutoHome, { recursive: true }),
 		mkdir(join(v2ConfigHome, 'opencode'), { recursive: true }),
 		mkdir(join(v2CacheHome, 'opencode', 'cursor-inference'), { recursive: true }),
 		mkdir(v2DataHome, { recursive: true }),
@@ -78,13 +116,41 @@ try {
 			],
 		})}\n`,
 	);
-	await cp(
-		join(cacheHome, 'opencode', 'cursor-inference', 'models.json'),
-		join(v2CacheHome, 'opencode', 'cursor-inference', 'models.json'),
-	);
 	const cursorPlugin = pathToFileURL(join(root, 'dist', 'plugin.mjs')).href;
 	const smokePlugin = pathToFileURL(join(root, 'test', 'fixtures', 'opencode-plugin.mjs')).href;
 	const smokeProvider = pathToFileURL(join(root, 'test', 'fixtures', 'opencode-provider.mjs')).href;
+	await writeFile(
+		join(stableAutoConfigHome, 'opencode', 'opencode.json'),
+		`${JSON.stringify({ plugin: [cursorPlugin] })}\n`,
+	);
+	const stableAutoEnvironment = {
+		...process.env,
+		HOME: stableAutoHome,
+		XDG_CONFIG_HOME: stableAutoConfigHome,
+		XDG_CACHE_HOME: stableAutoCacheHome,
+		XDG_DATA_HOME: stableAutoDataHome,
+	};
+	const stableAutoModels = (
+		await $`bunx --bun opencode-ai@1.18.28 models cursor`
+			.env(stableAutoEnvironment)
+			.cwd(workspace)
+			.quiet()
+			.text()
+	)
+		.split('\n')
+		.filter((line) => line !== '');
+	if (stableAutoModels.length !== 1 || stableAutoModels[0] !== 'cursor/default') {
+		throw new Error(
+			`Stable OpenCode did not expose exactly Cursor default/Auto: ${stableAutoModels.join(', ')}`,
+		);
+	}
+	if (
+		await Bun.file(
+			join(stableAutoCacheHome, 'opencode', 'cursor-inference', 'models.json'),
+		).exists()
+	) {
+		throw new Error('Stable OpenCode persisted the authless Auto fallback');
+	}
 	await writeFile(
 		join(configHome, 'opencode', 'opencode.json'),
 		`${JSON.stringify({
@@ -197,27 +263,86 @@ try {
 		XDG_DATA_HOME: v2DataHome,
 		OPENCODE_CURSOR_SMOKE_LOG: v2Log,
 		OPENCODE_CURSOR_SMOKE_FILE: proof,
+		OPENCODE_SERVER_PASSWORD: 'smoke-password',
 	};
-	const v2 = parseJson(
-		await $`opencode2 api --standalone v2.plugin.check --data ${'{}'}`
-			.env(v2Environment)
-			.cwd(workspace)
-			.quiet()
-			.text(),
-	);
-	const plugins = isRecord(v2) ? unknownArray(v2['data']) : [];
-	const cursorV2 = plugins.find(
-		(plugin) => isRecord(plugin) && plugin['id'] === 'opencode-cursor-inference',
-	);
-	if (
-		!isRecord(cursorV2) ||
-		!isRecord(cursorV2['state']) ||
-		cursorV2['state']['status'] !== 'active'
-	) {
-		throw new Error(
-			`OpenCode V2 did not activate the built hybrid Cursor plugin: ${JSON.stringify(cursorV2 ?? v2)}`,
+	const v2ServerUrl = `http://127.0.0.1:${String(await availablePort())}`;
+	const v2Server = Bun.spawn({
+		cmd: ['opencode2', 'serve', '--hostname', '127.0.0.1', '--port', new URL(v2ServerUrl).port],
+		cwd: workspace,
+		env: v2Environment,
+		stdout: 'ignore',
+		stderr: 'pipe',
+	});
+	try {
+		await waitForServer(v2ServerUrl, v2Server);
+		const v2 = parseJson(
+			await $`opencode2 api --server ${v2ServerUrl} v2.plugin.check --data ${'{}'}`
+				.env(v2Environment)
+				.cwd(workspace)
+				.quiet()
+				.text(),
 		);
+		const plugins = isRecord(v2) ? unknownArray(v2['data']) : [];
+		const cursorV2 = plugins.find(
+			(plugin) => isRecord(plugin) && plugin['id'] === 'opencode-cursor-inference',
+		);
+		if (
+			!isRecord(cursorV2) ||
+			!isRecord(cursorV2['state']) ||
+			cursorV2['state']['status'] !== 'active'
+		) {
+			throw new Error(
+				`OpenCode V2 did not activate the built hybrid Cursor plugin: ${JSON.stringify(v2)}`,
+			);
+		}
+
+		const v2ModelResponse = parseJson(
+			await $`opencode2 api --server ${v2ServerUrl} v2.model.list`
+				.env(v2Environment)
+				.cwd(workspace)
+				.quiet()
+				.text(),
+		);
+		const v2ProviderResponse = parseJson(
+			await $`opencode2 api --server ${v2ServerUrl} v2.provider.list`
+				.env(v2Environment)
+				.cwd(workspace)
+				.quiet()
+				.text(),
+		);
+		const v2Providers = isRecord(v2ProviderResponse)
+			? unknownArray(v2ProviderResponse['data'])
+			: [];
+		const cursorProvider = v2Providers.find(
+			(provider) => isRecord(provider) && provider['id'] === 'cursor',
+		);
+		if (!isRecord(cursorProvider)) {
+			throw new Error(
+				`OpenCode V2 did not expose the Cursor provider: ${JSON.stringify(v2ProviderResponse)}`,
+			);
+		}
+		const v2Models = isRecord(v2ModelResponse) ? unknownArray(v2ModelResponse['data']) : [];
+		const cursorModels = v2Models.filter(
+			(model) => isRecord(model) && model['providerID'] === 'cursor',
+		);
+		if (
+			cursorModels.length !== 1 ||
+			!isRecord(cursorModels[0]) ||
+			cursorModels[0]['modelID'] !== 'default' ||
+			cursorModels[0]['name'] !== 'Auto'
+		) {
+			throw new Error(
+				`OpenCode V2 did not expose exactly Cursor default/Auto: ${JSON.stringify({ model: v2ModelResponse, provider: cursorProvider })}`,
+			);
+		}
+		if (await Bun.file(join(v2CacheHome, 'opencode', 'cursor-inference', 'models.json')).exists()) {
+			throw new Error('OpenCode V2 persisted the authless Auto fallback');
+		}
+	} finally {
+		v2Server.kill();
+		await v2Server.exited;
 	}
+
 	const v2Read =
 		await $`opencode2 run --standalone --auto --model smoke/v2-fixture ${'Use the read tool once.'}`
 			.env(v2Environment)
@@ -247,7 +372,7 @@ try {
 		throw new Error('OpenCode V2 did not return its unavailable-tool result to the provider');
 	}
 	console.log(
-		'OpenCode V2 beta 19086 and stable V1 1.18.28 loaded the hybrid Cursor plugin; both completed host tool continuation and V2 returned unavailable-tool errors to the model.',
+		'OpenCode V2 beta 19086 and stable V1 1.18.28 loaded the hybrid Cursor plugin; both exposed authless Auto, both completed host tool continuation, and V2 returned unavailable-tool errors to the model.',
 	);
 } finally {
 	await rm(directory, { recursive: true, force: true });

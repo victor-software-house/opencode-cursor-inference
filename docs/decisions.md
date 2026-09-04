@@ -57,8 +57,24 @@ only when usable selection and capability metadata can be joined. Publish a Max 
 distinct supported mode.
 
 **Consequences:** Never infer image, reasoning, context, or Max support from model names. Cache only
-the normalized, non-secret catalog for ten minutes. Corrupt, stale, incomplete, or unmatched data is
+the normalized, non-secret catalog for ten minutes. Corrupt, incomplete, or unmatched data is
 omitted or rejected rather than filled with optimistic capabilities.
+
+## 2026-09-04 — Authenticated catalog provenance with one pre-login Auto row
+
+**Decision:** Cache files represent only catalogs produced by a successful authenticated refresh.
+A stale but structurally valid authenticated snapshot remains selectable after logout and after
+network or persistence failures. Without a credential and without such a snapshot, expose exactly
+one real Cursor routing row: model id `default`, display name `Auto`, and wire model id `default`.
+Never persist that fallback.
+
+**Consequences:** Cache writes use a schema version, fetch time, atomic replacement, and private file
+mode; never write tokens, account ids, raw responses, prompts, tool data, or usage data. A credential
+with no prior authenticated snapshot and a failed refresh exposes no models rather than Auto. Corrupt
+and empty caches do not establish provenance. V2 listens for Cursor credential-switch events and
+reloads the catalog; a successful login does not fetch the same account catalog twice. Stable V1 uses
+the same state rules through its config and OAuth hooks. This supersedes the earlier rule that refresh
+failure clears the cached catalog.
 
 ## 2026-09-04 — Stable OpenCode session headers identify managed runs
 

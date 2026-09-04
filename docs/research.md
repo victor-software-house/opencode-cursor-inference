@@ -40,7 +40,8 @@ Verified against the official V2 documentation, branch commit
   declared `./server` export. A hybrid default object with V2 `setup` and V1 `server` passed both real
   loaders; a pure V2 `./server` plus V1 root split would not.
 - V2 stores OAuth credentials in its credential database, activates new credentials, calls the
-  registered refresh function near expiry, and persists the refreshed value.
+  registered refresh function near expiry, and persists the refreshed value. Its event stream emits
+  `credential.switched` with the integration id and nullable active credential id.
 - `opencode2 auth login cursor` opens the returned authorization URL when stdin and stdout are TTYs.
   The full-screen `/connect` flow displays the URL and exposes an explicit open action.
 - Providers and models are registered with catalog transforms. V2 injects an OAuth access token into
@@ -126,9 +127,9 @@ The following choices are design inferences from the evidence sets:
    pass;
 4. provider and hybrid plugin entries build, private/beta build-helper imports are absent from the
    runtime artifacts, and package metadata is valid;
-5. OpenCode V2 beta `19086` activates the hybrid plugin without Cursor network access;
-6. both V2 beta `19086` and stable OpenCode `1.18.28` execute a synthetic host tool and continue with
-   its result; and
+5. OpenCode V2 beta `19086` and stable OpenCode `1.18.28` each expose exactly one authless
+   `default` / `Auto` row without persisting the fallback or contacting Cursor;
+6. both runtimes execute a synthetic host tool and continue with its result; and
 7. V2 returns an unavailable-tool result to the model and continues instead of requiring the provider
    to authorize the model-selected name.
 

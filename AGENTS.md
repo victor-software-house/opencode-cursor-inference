@@ -18,8 +18,9 @@ provider boundary, protocol, auth, catalog, or lifecycle.
   credentials, and prove private names/source paths are absent from every runtime artifact.
 - Credentials stay in OpenCode's auth store. Do not add another secret store or copy credentials into
   package-owned files.
-- Cache only normalized non-secret model metadata. Fail closed on incomplete catalog joins and
-  unsupported capabilities.
+- Cache only normalized non-secret model metadata from successful authenticated refreshes. Preserve
+  valid stale snapshots, never persist the pre-login Auto fallback, and fail closed on incomplete
+  catalog joins and unsupported capabilities.
 - Treat selected Cursor protobufs, headers, and behavior as versioned observations, not public API.
   Keep observed facts and design inferences distinct.
 - Never read an installed Cursor IDE or its storage to derive identity.

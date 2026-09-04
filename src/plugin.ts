@@ -9,11 +9,12 @@ import {
 	resolveCursorCredential,
 } from '@cursor/auth';
 import {
-	clearModelCache,
+	CursorCatalogState,
 	type DiscoveredModel,
 	discoverCursorModels,
 	modelsToConfig,
 	readFreshModelCache,
+	readLastKnownModelCache,
 	writeModelCache,
 } from '@cursor/catalog';
 import { disposeCursorProviders } from '@cursor/lifecycle';
@@ -77,6 +78,9 @@ function v2OAuthCredential(
 
 export const CursorPlugin: Plugin = async (input) => {
 	const cacheDir = openCodeCacheDir();
+	const freshModels = await readFreshModelCache(cacheDir);
+	const catalog = new CursorCatalogState(freshModels ?? (await readLastKnownModelCache(cacheDir)));
+	let catalogFresh = freshModels !== undefined;
 	const persist = async (credential: CursorOAuthCredential): Promise<void> => {
 		await input.client.auth.set({
 			path: { id: providerId },
@@ -86,18 +90,18 @@ export const CursorPlugin: Plugin = async (input) => {
 	const refreshModels = async (credential: CursorOAuthCredential): Promise<void> => {
 		try {
 			const resolved = await resolveCursorCredential(credential, persist);
-			await writeModelCache(cacheDir, await discoverModels(resolved));
-		} catch {
-			await clearModelCache(cacheDir);
-		}
+			await catalog.refresh(
+				async () => await discoverModels(resolved),
+				async (models) => await writeModelCache(cacheDir, models),
+			);
+			catalogFresh = true;
+		} catch {}
 	};
 	const loadModels = async () => {
-		const cached = await readFreshModelCache(cacheDir);
-		if (cached !== undefined) return modelsToConfig(cached);
 		const credential = await storedCredential();
-		if (credential === undefined) return {};
-		await refreshModels(credential);
-		return modelsToConfig((await readFreshModelCache(cacheDir)) ?? []);
+		if (credential === undefined) return modelsToConfig(catalog.models(false));
+		if (!catalogFresh) await refreshModels(credential);
+		return modelsToConfig(catalog.models(true));
 	};
 
 	return {
@@ -134,22 +138,23 @@ export const CursorPlugin: Plugin = async (input) => {
 
 type CursorV2Context = {
 	readonly catalog: Pick<V2PluginContext['catalog'], 'reload' | 'transform'>;
+	readonly event: Pick<V2PluginContext['event'], 'subscribe'>;
 	readonly integration: Pick<V2PluginContext['integration'], 'connection' | 'transform'>;
 };
 
 async function setupCursorV2(input: CursorV2Context): Promise<() => Promise<void>> {
 	const cacheDir = openCodeCacheDir();
-	let models = (await readFreshModelCache(cacheDir)) ?? [];
+	const freshModels = await readFreshModelCache(cacheDir);
+	const catalog = new CursorCatalogState(freshModels ?? (await readLastKnownModelCache(cacheDir)));
+	let hasCredential = false;
+	let loadedCredentialAccess: string | undefined;
 
 	const loadModels = async (credential: CursorOAuthCredential): Promise<void> => {
-		try {
-			models = await discoverModels(credential);
-			await writeModelCache(cacheDir, models);
-		} catch (error) {
-			models = [];
-			await clearModelCache(cacheDir);
-			throw error;
-		}
+		await catalog.refresh(
+			async () => await discoverModels(credential),
+			async (models) => await writeModelCache(cacheDir, models),
+		);
+		loadedCredentialAccess = credential.access;
 	};
 	const refreshModels = async (credential: CursorOAuthCredential): Promise<void> => {
 		try {
@@ -177,7 +182,8 @@ async function setupCursorV2(input: CursorV2Context): Promise<() => Promise<void
 					url: flow.url,
 					instructions: flow.instructions,
 					callback: flow.callback().then(async (credential) => {
-						await refreshModels(credential);
+						hasCredential = true;
+						await refreshModels(credential).catch(() => undefined);
 						return v2OAuthCredential(credential);
 					}),
 				};
@@ -192,23 +198,26 @@ async function setupCursorV2(input: CursorV2Context): Promise<() => Promise<void
 		});
 	});
 
-	if (models.length === 0) {
-		const connection = await input.integration.connection.active(v2IntegrationId);
-		const credential =
-			connection === undefined ? undefined : await input.integration.connection.resolve(connection);
-		if (isCursorOAuthCredential(credential)) await loadModels(credential).catch(() => undefined);
+	const connection = await input.integration.connection.active(v2IntegrationId);
+	const credential =
+		connection === undefined ? undefined : await input.integration.connection.resolve(connection);
+	hasCredential = connection !== undefined;
+	if (isCursorOAuthCredential(credential)) {
+		loadedCredentialAccess = credential.access;
+		if (freshModels === undefined) await loadModels(credential).catch(() => undefined);
 	}
 
-	await input.catalog.transform((catalog) => {
-		catalog.provider.update(v2ProviderId, (provider) => {
+	await input.catalog.transform((catalogEditor) => {
+		catalogEditor.provider.update(v2ProviderId, (provider) => {
 			provider.name = 'Cursor';
 			provider.integrationID = v2IntegrationId;
-			provider.activation = 'auto';
+			provider.activation = hasCredential ? 'auto' : 'enabled';
 			provider.package = v2ProviderEntry;
+			provider.body = hasCredential ? {} : { apiKey: '' };
 			provider.settings = { cacheDir };
 		});
-		for (const discovered of models) {
-			catalog.model.update(v2ProviderId, Model.ID.make(discovered.id), (model) => {
+		for (const discovered of catalog.models(hasCredential)) {
+			catalogEditor.model.update(v2ProviderId, Model.ID.make(discovered.id), (model) => {
 				model.modelID = Model.ID.make(discovered.id);
 				model.name = discovered.name;
 				model.capabilities = {
@@ -226,7 +235,38 @@ async function setupCursorV2(input: CursorV2Context): Promise<() => Promise<void
 		}
 	});
 
+	const eventController = new AbortController();
+	const eventLoop = (async () => {
+		for await (const event of input.event.subscribe({ signal: eventController.signal })) {
+			if (event.type !== 'credential.switched' || event.data.integrationID !== v2IntegrationId) {
+				continue;
+			}
+			try {
+				if (event.data.credentialID === null) {
+					hasCredential = false;
+					loadedCredentialAccess = undefined;
+					await input.catalog.reload();
+					continue;
+				}
+				const active = await input.integration.connection.active(v2IntegrationId);
+				const activeCredential =
+					active === undefined ? undefined : await input.integration.connection.resolve(active);
+				if (!isCursorOAuthCredential(activeCredential)) {
+					hasCredential = true;
+					loadedCredentialAccess = undefined;
+					await input.catalog.reload();
+					continue;
+				}
+				hasCredential = true;
+				if (activeCredential.access === loadedCredentialAccess) continue;
+				await refreshModels(activeCredential).catch(() => undefined);
+			} catch {}
+		}
+	})().catch(() => undefined);
+
 	return async () => {
+		eventController.abort();
+		await eventLoop;
 		await disposeCursorProviders();
 	};
 }

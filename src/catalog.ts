@@ -61,6 +61,41 @@ export interface DiscoveredModel {
 	readonly images: boolean;
 }
 
+export const CURSOR_AUTO_MODEL: DiscoveredModel = {
+	id: 'default',
+	name: 'Auto',
+	wireModelId: 'default',
+	maxMode: false,
+	contextWindow: defaultContextWindow,
+	reasoning: false,
+	images: false,
+};
+
+export class CursorCatalogState {
+	#authenticated: DiscoveredModel[] | undefined;
+
+	constructor(authenticated?: readonly DiscoveredModel[]) {
+		this.#authenticated = authenticated === undefined ? undefined : [...authenticated];
+	}
+
+	models(hasCredential: boolean): readonly DiscoveredModel[] {
+		if (this.#authenticated !== undefined) return this.#authenticated;
+		return hasCredential ? [] : [CURSOR_AUTO_MODEL];
+	}
+
+	async refresh(
+		load: () => Promise<readonly DiscoveredModel[]>,
+		persist: (models: readonly DiscoveredModel[]) => Promise<void>,
+	): Promise<void> {
+		const discovered = await load();
+		if (discovered.length === 0) {
+			throw new Error('Cursor authenticated catalog returned no models');
+		}
+		await persist(discovered);
+		this.#authenticated = [...discovered];
+	}
+}
+
 export interface OpenCodeModelConfig {
 	readonly id: string;
 	readonly name: string;
@@ -438,8 +473,11 @@ function parseDiscoveredModel(value: unknown): DiscoveredModel | undefined {
 	if (!isRecord(value)) return undefined;
 	if (
 		typeof value['id'] !== 'string' ||
+		value['id'] === '' ||
 		typeof value['name'] !== 'string' ||
+		value['name'] === '' ||
 		typeof value['wireModelId'] !== 'string' ||
+		value['wireModelId'] === '' ||
 		typeof value['maxMode'] !== 'boolean' ||
 		typeof value['contextWindow'] !== 'number' ||
 		!Number.isSafeInteger(value['contextWindow']) ||
@@ -468,30 +506,45 @@ function parseCache(value: unknown): ModelCache | undefined {
 		value['schemaVersion'] !== cacheSchemaVersion ||
 		typeof value['fetchedAt'] !== 'number' ||
 		!Number.isFinite(value['fetchedAt']) ||
-		!Array.isArray(value['models'])
+		!Array.isArray(value['models']) ||
+		value['models'].length === 0
 	) {
 		return undefined;
 	}
 	const models = value['models'].map(parseDiscoveredModel);
 	if (models.some((model) => model === undefined)) return undefined;
+	const authenticated = models.filter((model): model is DiscoveredModel => model !== undefined);
+	if (new Set(authenticated.map((model) => model.id)).size !== authenticated.length) {
+		return undefined;
+	}
 	return {
 		schemaVersion: cacheSchemaVersion,
 		fetchedAt: value['fetchedAt'],
-		models: models.filter((model): model is DiscoveredModel => model !== undefined),
+		models: authenticated,
 	};
+}
+
+async function readModelCache(cacheDir: string): Promise<ModelCache | undefined> {
+	try {
+		return parseCache(JSON.parse(await readFile(cachePath(cacheDir), 'utf8')));
+	} catch {
+		return undefined;
+	}
+}
+
+export async function readLastKnownModelCache(
+	cacheDir: string,
+): Promise<DiscoveredModel[] | undefined> {
+	return (await readModelCache(cacheDir))?.models;
 }
 
 export async function readFreshModelCache(
 	cacheDir: string,
 	now: number = Date.now(),
 ): Promise<DiscoveredModel[] | undefined> {
-	try {
-		const cache = parseCache(JSON.parse(await readFile(cachePath(cacheDir), 'utf8')));
-		if (cache === undefined || now - cache.fetchedAt >= cacheTtlMs) return undefined;
-		return cache.models;
-	} catch {
-		return undefined;
-	}
+	const cache = await readModelCache(cacheDir);
+	if (cache === undefined || now - cache.fetchedAt >= cacheTtlMs) return undefined;
+	return cache.models;
 }
 
 export async function writeModelCache(
@@ -515,8 +568,4 @@ export async function writeModelCache(
 		await unlink(temporary).catch(() => undefined);
 		throw error;
 	}
-}
-
-export async function clearModelCache(cacheDir: string): Promise<void> {
-	await unlink(cachePath(cacheDir)).catch(() => undefined);
 }
