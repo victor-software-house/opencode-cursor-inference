@@ -101,7 +101,7 @@ try {
 	await writeFile(
 		join(cacheHome, 'opencode', 'cursor-inference', 'models.json'),
 		`${JSON.stringify({
-			schemaVersion: 1,
+			schemaVersion: 2,
 			fetchedAt: 4_102_444_800_000,
 			models: [
 				{
@@ -109,6 +109,8 @@ try {
 					name: 'Cursor Fixture',
 					wireModelId: 'fixture-model',
 					maxMode: false,
+					parameters: [],
+					variants: [],
 					contextWindow: 200_000,
 					reasoning: false,
 					images: false,

@@ -39,10 +39,15 @@ import {
 import { validateCursorImage } from '@cursor/image';
 import { isRecord, omitUndefined } from '@victor-software-house/pi-type-kit';
 
+export interface CursorModelParameter {
+	readonly id: string;
+	readonly value: string;
+}
+
 export interface CursorModelSelection {
 	readonly wireModelId: string;
 	readonly maxMode: boolean;
-	readonly context?: string;
+	readonly parameters: readonly CursorModelParameter[];
 }
 
 function requiredObject(value: unknown, label: string): JsonObject {
@@ -286,10 +291,11 @@ export function buildInferenceRequest(options: LanguageModelV3CallOptions): Infe
 	const tools = (options.toolChoice?.type === 'none' ? [] : (options.tools ?? [])).map((tool) => {
 		if (tool.type !== 'function')
 			throw new Error(`Cursor provider tool '${tool.name}' is unsupported`);
+		const jsonSchema = requiredObject(tool.inputSchema, `Cursor tool '${tool.name}' schema`);
 		return create(InferenceAgentToolSchema, {
 			name: tool.name,
 			description: tool.description ?? '',
-			parameters: requiredObject(tool.inputSchema, `Cursor tool '${tool.name}' schema`),
+			parameters: { jsonSchema },
 		});
 	});
 	return create(
@@ -328,10 +334,9 @@ export function inferenceRequestedModel(selection: CursorModelSelection): Infere
 	return create(InferenceRequestedModelSchema, {
 		modelId: selection.wireModelId,
 		maxMode: selection.maxMode,
-		parameters:
-			selection.context === undefined
-				? []
-				: [create(InferenceModelParameterValueSchema, { id: 'context', value: selection.context })],
+		parameters: selection.parameters.map((parameter) =>
+			create(InferenceModelParameterValueSchema, parameter),
+		),
 	});
 }
 

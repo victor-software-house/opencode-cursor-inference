@@ -37,6 +37,18 @@ const providerEntry = new URL('./index.mjs', import.meta.url).href;
 const v2ProviderEntry = `aisdk:${providerEntry}`;
 const outputTokenLimit = 64_000;
 
+function modelSettings(route: {
+	readonly wireModelId: string;
+	readonly maxMode: boolean;
+	readonly parameters: DiscoveredModel['parameters'];
+}): Record<string, unknown> {
+	return {
+		cursorWireModelId: route.wireModelId,
+		cursorMaxMode: route.maxMode,
+		cursorModelParameters: route.parameters,
+	};
+}
+
 async function storedCredential(): Promise<CursorOAuthCredential | undefined> {
 	let auth: unknown;
 	try {
@@ -226,11 +238,11 @@ async function setupCursorV2(input: CursorV2Context): Promise<() => Promise<void
 					output: ['text'],
 				};
 				model.limit = { context: discovered.contextWindow, output: outputTokenLimit };
-				model.settings = {
-					cursorWireModelId: discovered.wireModelId,
-					cursorMaxMode: discovered.maxMode,
-					...(discovered.context === undefined ? {} : { cursorContext: discovered.context }),
-				};
+				model.settings = modelSettings(discovered);
+				model.variants = discovered.variants.map((variant) => ({
+					id: Model.VariantID.make(variant.id),
+					settings: modelSettings({ ...discovered, ...variant }),
+				}));
 			});
 		}
 	});

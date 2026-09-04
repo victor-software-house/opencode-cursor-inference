@@ -32,7 +32,10 @@ export interface CursorProviderOptions {
 	readonly cacheDir?: string;
 	readonly cursorWireModelId?: string;
 	readonly cursorMaxMode?: boolean;
-	readonly cursorContext?: string;
+	readonly cursorModelParameters?: readonly {
+		readonly id: string;
+		readonly value: string;
+	}[];
 }
 
 export interface CursorProvider {
@@ -53,6 +56,27 @@ function requiredSessionId(options: LanguageModelV3CallOptions): string {
 	throw new Error('Cursor managed inference requires OpenCode to provide a session header');
 }
 
+function cursorModelParameters(value: unknown): CursorModelSelection['parameters'] {
+	if (!Array.isArray(value)) throw new Error('Cursor model parameters must be an array');
+	const parameters = value.map((candidate) => {
+		if (
+			!isRecord(candidate) ||
+			typeof candidate['id'] !== 'string' ||
+			candidate['id'] === '' ||
+			typeof candidate['value'] !== 'string'
+		) {
+			throw new Error(
+				'Cursor model parameters must contain non-empty string ids and string values',
+			);
+		}
+		return { id: candidate['id'], value: candidate['value'] };
+	});
+	if (new Set(parameters.map(({ id }) => id)).size !== parameters.length) {
+		throw new Error('Cursor model parameter ids must be unique');
+	}
+	return parameters;
+}
+
 function modelSelection(
 	modelId: string,
 	options: LanguageModelV3CallOptions,
@@ -65,15 +89,15 @@ function modelSelection(
 	const wireModelId =
 		value?.['cursorWireModelId'] ?? defaults?.wireModelId ?? modelId.replace(/-max$/u, '');
 	const maxMode = value?.['cursorMaxMode'] ?? defaults?.maxMode ?? modelId.endsWith('-max');
-	const context = value?.['cursorContext'] ?? defaults?.context;
+	const parameters =
+		value?.['cursorModelParameters'] === undefined
+			? (defaults?.parameters ?? [])
+			: cursorModelParameters(value['cursorModelParameters']);
 	if (typeof wireModelId !== 'string' || wireModelId === '') {
 		throw new Error('Cursor wire model id must be a non-empty string');
 	}
 	if (typeof maxMode !== 'boolean') throw new Error('Cursor max mode must be a boolean');
-	if (context !== undefined && typeof context !== 'string') {
-		throw new Error('Cursor context parameter must be a string');
-	}
-	return { wireModelId, maxMode, ...(context === undefined ? {} : { context }) };
+	return { wireModelId, maxMode, parameters };
 }
 
 function boundModelSelection(options: CursorProviderOptions): CursorModelSelection | undefined {
@@ -81,11 +105,8 @@ function boundModelSelection(options: CursorProviderOptions): CursorModelSelecti
 	if (wireModelId === undefined) return undefined;
 	if (wireModelId === '') throw new Error('Cursor wire model id must be a non-empty string');
 	const maxMode = options.cursorMaxMode ?? false;
-	const context = options.cursorContext;
-	if (context !== undefined && context === '') {
-		throw new Error('Cursor context parameter must be a non-empty string');
-	}
-	return { wireModelId, maxMode, ...(context === undefined ? {} : { context }) };
+	const parameters = cursorModelParameters(options.cursorModelParameters ?? []);
+	return { wireModelId, maxMode, parameters };
 }
 
 class CursorLanguageModel implements LanguageModelV3 {

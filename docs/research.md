@@ -68,7 +68,8 @@ Observed behavior used here:
 - An outer run is keyed by conversation identity and requested model routing. Individual model calls
   use invocation ids.
 - Requests carry complete inference messages, model configuration, arbitrary agent-tool schemas, and
-  tool results.
+  tool results. Cursor's source-measured tool envelope stores each exact JSON Schema under the
+  `jsonSchema` key of `InferenceAgentTool.parameters`, rather than at that Struct's root.
 - Responses can stream text, reasoning, partial tool arguments, usage, final response information,
   provider metadata, nested invocation identity, and structured errors.
 - A streamed tool call names the tool on its opening frame, may omit the name on intermediate argument
@@ -76,7 +77,9 @@ Observed behavior used here:
   intermediate name inherits the opening identity.
 - Reasoning can include signatures or opaque redacted data needed for continuation.
 - Cursor's selected catalog surface consists of `AvailableModels`, `GetUsableModels`, and
-  `GetDefaultModelForCli`.
+  `GetDefaultModelForCli`. `AvailableModels` supplies a logical server model id and variant records
+  whose complete parameter maps carry reasoning, context, Fast, and Max selections. Usable legacy
+  slugs select those variants; they are not necessarily valid outer wire model ids.
 - Cursor's observed machine identity algorithm hashes platform-specific host identity and the first
   usable MAC address.
 
@@ -104,7 +107,8 @@ The following choices are design inferences from the evidence sets:
   both current loaders.
 - V2 reasoning effort belongs in model variants, while Cursor Fast and distinct Max Mode selections
   remain separate catalog rows because Fast is a distinct product selection and Max can change
-  context limits.
+  context limits. The same complete captured parameter map backs each stable-V1 option and V2
+  settings overlay.
 - The V2 provider can route to the bundled sibling AI SDK provider with an `aisdk:file://` package
   reference, avoiding a second provider installation and version skew.
 - A classic plugin and an AI SDK provider are the smallest stable OpenCode integration for the

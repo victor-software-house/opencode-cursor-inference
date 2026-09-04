@@ -56,9 +56,12 @@ the credential into package-owned storage.
 only when usable selection and capability metadata can be joined. Publish a Max row only when it is a
 distinct supported mode.
 
-**Consequences:** Never infer image, reasoning, context, or Max support from model names. Cache only
-the normalized, non-secret catalog for ten minutes. Corrupt, incomplete, or unmatched data is
-omitted or rejected rather than filled with optimistic capabilities.
+**Consequences:** Never infer image, reasoning, context, or Max support from model names. Treat
+reasoning effort, Fast, and Max Mode as independent axes: efforts are OpenCode variants, while Fast
+and a distinct Max Mode are separate model rows. Route with the logical server model id and the
+selected catalog variant's complete parameter set; legacy slugs are selectors, not wire model ids.
+Cache only the normalized, non-secret catalog for ten minutes. Corrupt, incomplete, or unmatched
+data is omitted or rejected rather than filled with optimistic capabilities.
 
 ## 2026-09-04 — Authenticated catalog provenance with one pre-login Auto row
 
@@ -100,7 +103,9 @@ HTTP headers, framing, and message behavior as observations tied to the captured
 as a public API promise.
 
 **Consequences:** Generated files are not edited. Changes begin with new evidence, update the proto
-source and tests together, and keep observed facts separate from design inferences.
+source and tests together, and keep observed facts separate from design inferences. Preserve the
+source-measured `{ jsonSchema: schema }` envelope in `InferenceAgentTool.parameters`; a bare schema
+root is not the observed wire contract.
 
 ## 2026-09-04 — No live network in the default gate
 

@@ -18,6 +18,14 @@ describe('OpenCode V2 plugin', () => {
 					name: 'Cursor Fixture',
 					wireModelId: 'fixture-wire-model',
 					maxMode: false,
+					parameters: [{ id: 'effort', value: 'medium' }],
+					variants: [
+						{
+							id: 'high',
+							wireModelId: 'fixture-wire-model',
+							parameters: [{ id: 'effort', value: 'high' }],
+						},
+					],
 					contextWindow: 200_000,
 					reasoning: true,
 					images: false,
@@ -144,7 +152,18 @@ describe('OpenCode V2 plugin', () => {
 				settings: {
 					cursorWireModelId: 'fixture-wire-model',
 					cursorMaxMode: false,
+					cursorModelParameters: [{ id: 'effort', value: 'medium' }],
 				},
+				variants: [
+					{
+						id: 'high',
+						settings: {
+							cursorWireModelId: 'fixture-wire-model',
+							cursorMaxMode: false,
+							cursorModelParameters: [{ id: 'effort', value: 'high' }],
+						},
+					},
+				],
 			});
 
 			if (typeof cleanup === 'function') await Reflect.apply(cleanup, undefined, []);
@@ -166,6 +185,8 @@ describe('OpenCode V2 plugin', () => {
 					name: 'Cursor Fixture',
 					wireModelId: 'fixture-wire-model',
 					maxMode: false,
+					parameters: [],
+					variants: [],
 					contextWindow: 200_000,
 					reasoning: true,
 					images: false,
@@ -290,7 +311,11 @@ describe('OpenCode stable V1 adapter', () => {
 							default: {
 								id: 'default',
 								name: 'Auto',
-								options: { cursorWireModelId: 'default', cursorMaxMode: false },
+								options: {
+									cursorWireModelId: 'default',
+									cursorMaxMode: false,
+									cursorModelParameters: [],
+								},
 							},
 						},
 					},
@@ -319,6 +344,8 @@ describe('OpenCode stable V1 adapter', () => {
 						name: 'Last Known',
 						wireModelId: 'last-known-wire',
 						maxMode: false,
+						parameters: [],
+						variants: [],
 						contextWindow: 200_000,
 						reasoning: false,
 						images: false,
@@ -363,7 +390,7 @@ describe('OpenCode V2 provider factory', () => {
 			cacheDir: '/tmp/opencode-cursor-v2-provider',
 			cursorWireModelId: 'fixture-wire-model',
 			cursorMaxMode: true,
-			cursorContext: '1m',
+			cursorModelParameters: [{ id: 'context', value: '1m' }],
 		});
 		const model = provider.languageModel('fixture-model');
 		expect(model.provider).toBe('cursor');
