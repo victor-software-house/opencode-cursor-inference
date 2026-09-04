@@ -420,6 +420,51 @@ describe('managed inference transport', () => {
 		await managed.shutdown();
 	});
 
+	test('opens a fresh HTTP/2 connection when switching routed runs', async () => {
+		let opened = 0;
+		const target = await loopback((message, stream) => {
+			if (message.message.case === 'runRequest') {
+				opened += 1;
+				send(
+					stream,
+					serverMessage({
+						message: {
+							case: 'runReady',
+							value: create(RunInferenceRunReadySchema, {
+								resolvedModel: create(InferenceRequestedModelSchema, {
+									modelId: `model-${String(opened)}`,
+								}),
+							}),
+						},
+					}),
+				);
+			}
+			if (message.message.case === 'invokeModel') {
+				const invocationId = message.message.value.invocationId;
+				if (opened === 1) send(stream, invocationEnd(invocationId));
+				else setTimeout(() => send(stream, invocationEnd(invocationId)), 20);
+			}
+			if (message.message.case === 'finishRun') {
+				stream.end(encodeConnectFrame(new TextEncoder().encode('{}'), CONNECT_FLAG_END_STREAM));
+				const session = stream.session;
+				if (session === undefined) throw new Error('loopback session missing');
+				setTimeout(() => session.destroy(), 5);
+			}
+		});
+		const managed = runtime(target);
+		const request = create(InferenceStreamRequestSchema);
+		await managed.invoke('pi-session', 'route-a', clientRun(), 'first', request, {
+			onResponse: () => undefined,
+		});
+		expect(
+			await managed.invoke('pi-session', 'route-b', clientRun(), 'second', request, {
+				onResponse: () => undefined,
+			}),
+		).toHaveProperty('invocationId', 'second');
+		expect(sessions.size).toBe(2);
+		await managed.shutdown();
+	});
+
 	test('fails every pending invocation on an unknown correlation id', async () => {
 		const target = await loopback((message, stream) => {
 			if (message.message.case !== 'runRequest') return;

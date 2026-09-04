@@ -78,6 +78,10 @@ function validateToolInput(input: string, label: string): void {
 	}
 }
 
+function stripTerminalEndOfSequence(text: string): string {
+	return text.endsWith('<|eos|>') ? text.slice(0, -'<|eos|>'.length) : text;
+}
+
 function finalContent(info: InferenceResponseInfo): LanguageModelV3Content[] {
 	const content: LanguageModelV3Content[] = [];
 	for (const message of info.messages) {
@@ -91,7 +95,8 @@ function finalContent(info: InferenceResponseInfo): LanguageModelV3Content[] {
 			});
 		}
 		if (message.content !== undefined && message.content !== '') {
-			content.push({ type: 'text', text: message.content });
+			const text = stripTerminalEndOfSequence(message.content);
+			if (text !== '') content.push({ type: 'text', text });
 		}
 		for (const tool of message.toolCalls) {
 			const input = toolInput(tool);
@@ -194,13 +199,16 @@ export class CursorResponseMapper {
 		switch (part.case) {
 			case 'textPart': {
 				const output = this.#closeReasoning();
-				if (part.value.text !== '') {
+				const text = part.value.isFinal
+					? stripTerminalEndOfSequence(part.value.text)
+					: part.value.text;
+				if (text !== '') {
 					if (this.#text === undefined) {
 						this.#text = { id: crypto.randomUUID(), text: '' };
 						output.push({ type: 'text-start', id: this.#text.id });
 					}
-					this.#text.text += part.value.text;
-					output.push({ type: 'text-delta', id: this.#text.id, delta: part.value.text });
+					this.#text.text += text;
+					output.push({ type: 'text-delta', id: this.#text.id, delta: text });
 				}
 				if (part.value.isFinal) output.push(...this.#closeText());
 				return output;

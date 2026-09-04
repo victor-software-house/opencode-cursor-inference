@@ -85,7 +85,9 @@ failure clears the cached catalog.
 outer Cursor conversation id. Missing identity is an error.
 
 **Consequences:** Do not generate a new conversation id per call. Invocation ids remain unique per
-provider call. Route-key changes finish the old outer run before creating a new one.
+provider call. Route-key changes finish the old outer run, retire its HTTP/2 connection completely,
+and only then create the replacement run; Cursor can retire that connection after `finishRun`, so
+immediate reuse or replacement before close can abort the first request after a model switch.
 
 ## 2026-09-04 — Host-derived identity with one bounded fallback
 

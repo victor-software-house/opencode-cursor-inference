@@ -207,6 +207,17 @@ describe('Cursor AI SDK response mapping', () => {
 		);
 	});
 
+	test('removes a terminal model end-of-sequence marker from streamed text', () => {
+		const mapper = new CursorResponseMapper();
+		const events = mapper.handle(text('GROK_OK<|eos|>', true));
+		expect(events).toContainEqual({
+			type: 'text-delta',
+			id: expect.any(String),
+			delta: 'GROK_OK',
+		});
+		expect(mapper.finish().result.content).toContainEqual({ type: 'text', text: 'GROK_OK' });
+	});
+
 	test('maps an output limit with partial content to length', () => {
 		const mapper = new CursorResponseMapper();
 		mapper.handle(text('partial', true));
