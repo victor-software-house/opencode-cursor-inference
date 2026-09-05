@@ -1,6 +1,6 @@
 {
 	"name": "opencode-cursor-inference",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Unofficial Cursor managed inference provider for OpenCode over InferenceService/RunInference.",
 	"author": "Victor Araújo",
 	"license": "MIT",
