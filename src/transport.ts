@@ -23,9 +23,9 @@ import {
 	RunInferenceInvokeModelSchema,
 	RunInferenceServerMessageSchema,
 } from '@cursor/gen/aiserver/v1/inference_pb';
-import { isRecord, omitUndefined } from '@cursor/guards';
 import { inferenceRequestHeaders } from '@cursor/headers';
 import type { CursorMachineIdentity } from '@cursor/identity';
+import { isRecord, omitUndefined } from '@victor-software-house/pi-type-kit';
 
 const CONNECT_COMPRESSION_MIN_BYTES = 1_024;
 const RESPONSE_TIMEOUT_MS = 65_000;
@@ -156,6 +156,7 @@ function waitWithTimeout<T>(promise: Promise<T>, timeoutMs: number, label: strin
 
 export class CursorInferenceRun {
 	readonly routeKey: string;
+	readonly connection: ClientHttp2Session;
 	readonly ready: Promise<RunInferenceRunReady>;
 	readonly completion: Promise<RunCompletion>;
 	readonly #request: ClientHttp2Stream;
@@ -182,6 +183,7 @@ export class CursorInferenceRun {
 		options: Pick<CursorInferenceRuntimeOptions, 'responseTimeoutMs'>,
 	) {
 		this.routeKey = routeKey;
+		this.connection = session;
 		this.#responseTimeoutMs = options.responseTimeoutMs ?? RESPONSE_TIMEOUT_MS;
 		let resolveReady!: (value: RunInferenceRunReady) => void;
 		let rejectReady!: (error: unknown) => void;
@@ -480,6 +482,7 @@ export class CursorInferenceRuntime {
 	readonly #clientKey: string;
 	readonly #runs = new Map<string, RunSlot>();
 	readonly #runLocks = new Map<string, Promise<void>>();
+	readonly #sessions = new Set<ClientHttp2Session>();
 	#session: ClientHttp2Session | undefined;
 	#sessionPromise: Promise<ClientHttp2Session> | undefined;
 	readonly #lifecycle = new Set<'closed'>();
@@ -508,6 +511,7 @@ export class CursorInferenceRuntime {
 			})
 			.then((session) => {
 				this.#session = session;
+				this.#sessions.add(session);
 				this.#sessionPromise = undefined;
 				session.once('goaway', () => {
 					if (this.#session === session) this.#session = undefined;
@@ -517,10 +521,22 @@ export class CursorInferenceRuntime {
 				});
 				session.once('close', () => {
 					if (this.#session === session) this.#session = undefined;
+					this.#sessions.delete(session);
 				});
 				return session;
 			});
 		return await this.#sessionPromise;
+	}
+
+	async #retireConnection(run: CursorInferenceRun): Promise<void> {
+		const connection = run.connection;
+		if (this.#session === connection) this.#session = undefined;
+		const stillUsed = [...this.#runs.values()].some((slot) => slot.run.connection === connection);
+		if (stillUsed || connection.closed || connection.destroyed) return;
+		await new Promise<void>((resolve) => {
+			connection.once('close', resolve);
+			connection.close();
+		});
 	}
 
 	async #newRun(
@@ -571,6 +587,7 @@ export class CursorInferenceRuntime {
 			if (slot !== undefined) {
 				this.#runs.delete(sessionId);
 				await slot.run.finish(this.#options.shutdownTimeoutMs ?? SHUTDOWN_TIMEOUT_MS);
+				await this.#retireConnection(slot.run);
 			}
 			const run = await this.#newRun(routeKey, runRequest);
 			this.#runs.set(sessionId, { routeKey, run });
@@ -615,7 +632,8 @@ export class CursorInferenceRuntime {
 				async ({ run }) => await run.finish(this.#options.shutdownTimeoutMs ?? SHUTDOWN_TIMEOUT_MS),
 			),
 		);
-		this.#session?.destroy();
+		for (const session of this.#sessions) session.destroy();
+		this.#sessions.clear();
 		this.#session = undefined;
 	}
 }

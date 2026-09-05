@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import { arch, env, platform } from 'node:process';
-import { isRecord } from '@cursor/guards';
+import { isRecord } from '@victor-software-house/pi-type-kit';
 
 export const CURSOR_IDE_VERSION = '3.18.9';
 export const CURSOR_IDE_COMMIT = '2ba48ff3f7514cc4643c52ca9f7b3173d9b66130';

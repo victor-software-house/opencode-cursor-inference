@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
-import { isRecord } from '@cursor/guards';
 import type { AuthOAuthResult, Hooks } from '@opencode-ai/plugin';
+import { isRecord } from '@victor-software-house/pi-type-kit';
 
 const loginUrl = 'https://cursor.com/loginDeepControl';
 const pollUrl = 'https://api2.cursor.sh/auth/poll';
@@ -47,6 +47,12 @@ const dependencies: CursorAuthDependencies = {
 	randomUuid: randomUUID,
 	now: Date.now,
 };
+
+export interface CursorOAuthFlow {
+	readonly url: string;
+	readonly instructions: string;
+	readonly callback: () => Promise<CursorOAuthCredential>;
+}
 
 function base64Url(value: Uint8Array): string {
 	return Buffer.from(value).toString('base64url');
@@ -204,15 +210,19 @@ export async function refreshCursorToken(
 }
 
 export function isCursorOAuthCredential(value: unknown): value is CursorOAuthCredential {
+	if (typeof value !== 'object' || value === null) return false;
+	const type: unknown = Reflect.get(value, 'type');
+	const access: unknown = Reflect.get(value, 'access');
+	const refresh: unknown = Reflect.get(value, 'refresh');
+	const expires: unknown = Reflect.get(value, 'expires');
 	return (
-		isRecord(value) &&
-		value['type'] === 'oauth' &&
-		typeof value['access'] === 'string' &&
-		value['access'] !== '' &&
-		typeof value['refresh'] === 'string' &&
-		value['refresh'] !== '' &&
-		typeof value['expires'] === 'number' &&
-		Number.isFinite(value['expires'])
+		type === 'oauth' &&
+		typeof access === 'string' &&
+		access !== '' &&
+		typeof refresh === 'string' &&
+		refresh !== '' &&
+		typeof expires === 'number' &&
+		Number.isFinite(expires)
 	);
 }
 
@@ -227,6 +237,17 @@ export async function resolveCursorCredential(
 	return refreshed;
 }
 
+export function createCursorOAuthFlow(
+	deps: CursorAuthDependencies = dependencies,
+): CursorOAuthFlow {
+	const request = createCursorAuthRequest(deps);
+	return {
+		url: request.url,
+		instructions: 'Complete Cursor sign-in in your browser.',
+		callback: async () => await pollCursorAuth(request, new AbortController().signal, deps),
+	};
+}
+
 export function cursorOAuthMethod(
 	options: {
 		readonly onSuccess?: (credential: CursorOAuthCredential) => Promise<void>;
@@ -238,13 +259,13 @@ export function cursorOAuthMethod(
 		type: 'oauth',
 		label: 'Cursor account (browser login)',
 		async authorize(): Promise<AuthOAuthResult> {
-			const request = createCursorAuthRequest(deps);
+			const flow = createCursorOAuthFlow(deps);
 			return {
-				url: request.url,
-				instructions: 'Complete Cursor sign-in in your browser.',
+				url: flow.url,
+				instructions: flow.instructions,
 				method: 'auto',
 				async callback() {
-					const credential = await pollCursorAuth(request, new AbortController().signal, deps);
+					const credential = await flow.callback();
 					await options.onSuccess?.(credential);
 					return {
 						type: 'success',

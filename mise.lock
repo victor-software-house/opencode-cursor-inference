@@ -13,6 +13,24 @@ url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_
 url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924896"
 provenance = "github-attestations"
 
+[tools.actionlint."platforms.linux-x64-baseline"]
+checksum = "sha256:8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924896"
+provenance = "github-attestations"
+
+[tools.actionlint."platforms.linux-x64-musl"]
+checksum = "sha256:8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924896"
+provenance = "github-attestations"
+
+[tools.actionlint."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924896"
+provenance = "github-attestations"
+
 [tools.actionlint."platforms.macos-arm64"]
 checksum = "sha256:aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_arm64.tar.gz"
@@ -89,10 +107,55 @@ checksum = "sha256:96fc2fbf11f0afde51256647127e6f00a64ce839a4d9a0a1aef2426c0e6f4
 url = "https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz"
 url_api = "https://api.github.com/repos/open-policy-agent/conftest/releases/assets/499923547"
 
+[tools.conftest."platforms.linux-x64-baseline"]
+checksum = "sha256:96fc2fbf11f0afde51256647127e6f00a64ce839a4d9a0a1aef2426c0e6f4b3f"
+url = "https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/open-policy-agent/conftest/releases/assets/499923547"
+
+[tools.conftest."platforms.linux-x64-musl"]
+checksum = "sha256:96fc2fbf11f0afde51256647127e6f00a64ce839a4d9a0a1aef2426c0e6f4b3f"
+url = "https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/open-policy-agent/conftest/releases/assets/499923547"
+
+[tools.conftest."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:96fc2fbf11f0afde51256647127e6f00a64ce839a4d9a0a1aef2426c0e6f4b3f"
+url = "https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/open-policy-agent/conftest/releases/assets/499923547"
+
 [tools.conftest."platforms.macos-arm64"]
 checksum = "sha256:78302d045f0ec52e9786a06c6c621ac4516b4c5dd1e54efc8050c86c29b964d9"
 url = "https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Darwin_arm64.tar.gz"
 url_api = "https://api.github.com/repos/open-policy-agent/conftest/releases/assets/499923548"
+
+[[tools.gitleaks]]
+version = "8.30.0"
+backend = "aqua:gitleaks/gitleaks"
+specifiers = ["8.30.0"]
+
+[tools.gitleaks."platforms.linux-x64"]
+checksum = "sha256:79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e"
+url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/gitleaks_8.30.0_linux_x64.tar.gz"
+url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/321137328"
+
+[tools.gitleaks."platforms.linux-x64-baseline"]
+checksum = "sha256:79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e"
+url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/gitleaks_8.30.0_linux_x64.tar.gz"
+url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/321137328"
+
+[tools.gitleaks."platforms.linux-x64-musl"]
+checksum = "sha256:79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e"
+url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/gitleaks_8.30.0_linux_x64.tar.gz"
+url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/321137328"
+
+[tools.gitleaks."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e"
+url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/gitleaks_8.30.0_linux_x64.tar.gz"
+url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/321137328"
+
+[tools.gitleaks."platforms.macos-arm64"]
+checksum = "sha256:b251ab2bcd4cd8ba9e56ff37698c033ebf38582b477d21ebd86586d927cf87e7"
+url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/gitleaks_8.30.0_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/321137755"
 
 [[tools.lefthook]]
 version = "2.1.12"

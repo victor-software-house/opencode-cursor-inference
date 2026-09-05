@@ -67,7 +67,9 @@ describe('Cursor inference request mapping', () => {
 		expect(request.messages[3]?.content.case).toBe('toolContent');
 		expect(request.tools[0]).toMatchObject({
 			name: 'read',
-			parameters: { type: 'object', required: ['path'] },
+			parameters: {
+				jsonSchema: { type: 'object', required: ['path'] },
+			},
 		});
 	});
 
@@ -82,7 +84,15 @@ describe('Cursor inference request mapping', () => {
 
 	test('builds the routed outer run from host-owned history', () => {
 		const request = buildInferenceRunRequest(
-			{ wireModelId: 'claude-test', maxMode: true, context: '1m' },
+			{
+				wireModelId: 'claude-test',
+				maxMode: true,
+				parameters: [
+					{ id: 'thinking', value: 'true' },
+					{ id: 'context', value: '1m' },
+					{ id: 'effort', value: 'high' },
+				],
+			},
 			options().prompt,
 			'session-1',
 		);
@@ -92,7 +102,11 @@ describe('Cursor inference request mapping', () => {
 			requestedModel: {
 				modelId: 'claude-test',
 				maxMode: true,
-				parameters: [{ id: 'context', value: '1m' }],
+				parameters: [
+					{ id: 'thinking', value: 'true' },
+					{ id: 'context', value: '1m' },
+					{ id: 'effort', value: 'high' },
+				],
 			},
 		});
 		expect(request.routingConversation.map(({ text }) => text)).toEqual(['Read the file.']);

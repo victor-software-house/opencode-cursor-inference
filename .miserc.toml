@@ -1,0 +1,2 @@
+# Local default is the dev profile. CI overrides with MISE_ENV=ci.
+env = ["dev"]

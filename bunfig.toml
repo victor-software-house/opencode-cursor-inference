@@ -3,3 +3,6 @@ linker = "hoisted"
 # BUN_CONFIG_TOKEN is minted by `mise run release:oidc` in CI. Never add a
 # repository .npmrc or a long-lived npm publishing token.
 registry = { url = "https://registry.npmjs.org", token = "$BUN_CONFIG_TOKEN" }
+
+[install.scopes]
+"@victor-software-house" = { url = "https://npm.pkg.github.com", token = "$PI_CURSOR_PACKAGES_TOKEN" }

@@ -78,10 +78,11 @@ function validateToolInput(input: string, label: string): void {
 	}
 }
 
-function finalContent(
-	info: InferenceResponseInfo,
-	allowedTools: ReadonlySet<string>,
-): LanguageModelV3Content[] {
+function stripTerminalEndOfSequence(text: string): string {
+	return text.endsWith('<|eos|>') ? text.slice(0, -'<|eos|>'.length) : text;
+}
+
+function finalContent(info: InferenceResponseInfo): LanguageModelV3Content[] {
 	const content: LanguageModelV3Content[] = [];
 	for (const message of info.messages) {
 		if (message.role === InferenceMessageRole.TOOL) continue;
@@ -94,12 +95,10 @@ function finalContent(
 			});
 		}
 		if (message.content !== undefined && message.content !== '') {
-			content.push({ type: 'text', text: message.content });
+			const text = stripTerminalEndOfSequence(message.content);
+			if (text !== '') content.push({ type: 'text', text });
 		}
 		for (const tool of message.toolCalls) {
-			if (!allowedTools.has(tool.toolName)) {
-				throw new Error(`Cursor final response requested unknown tool '${tool.toolName}'`);
-			}
 			const input = toolInput(tool);
 			validateToolInput(input, `final tool '${tool.toolCallId}'`);
 			content.push({
@@ -170,7 +169,6 @@ export interface CursorResponseResult {
 }
 
 export class CursorResponseMapper {
-	readonly #allowedTools: ReadonlySet<string>;
 	readonly #expectedInvocationId: string | undefined;
 	readonly #tools = new Map<string, StreamedTool>();
 	readonly #responseKinds = new Set<InferenceStreamResponse['response']['case']>();
@@ -181,8 +179,7 @@ export class CursorResponseMapper {
 	#usage = emptyUsage();
 	#responseInfo: InferenceResponseInfo | undefined;
 
-	constructor(allowedTools: ReadonlySet<string>, expectedInvocationId?: string) {
-		this.#allowedTools = allowedTools;
+	constructor(expectedInvocationId?: string) {
 		this.#expectedInvocationId = expectedInvocationId;
 	}
 
@@ -202,13 +199,16 @@ export class CursorResponseMapper {
 		switch (part.case) {
 			case 'textPart': {
 				const output = this.#closeReasoning();
-				if (part.value.text !== '') {
+				const text = part.value.isFinal
+					? stripTerminalEndOfSequence(part.value.text)
+					: part.value.text;
+				if (text !== '') {
 					if (this.#text === undefined) {
 						this.#text = { id: crypto.randomUUID(), text: '' };
 						output.push({ type: 'text-start', id: this.#text.id });
 					}
-					this.#text.text += part.value.text;
-					output.push({ type: 'text-delta', id: this.#text.id, delta: part.value.text });
+					this.#text.text += text;
+					output.push({ type: 'text-delta', id: this.#text.id, delta: text });
 				}
 				if (part.value.isFinal) output.push(...this.#closeText());
 				return output;
@@ -249,15 +249,13 @@ export class CursorResponseMapper {
 			case 'toolCallPart': {
 				const incoming = part.value;
 				const output = [...this.#closeText(), ...this.#closeReasoning()];
-				if (!this.#allowedTools.has(incoming.toolName)) {
-					throw new Error(`Cursor requested unknown tool '${incoming.toolName}'`);
-				}
 				let tool = this.#tools.get(incoming.toolCallId);
 				if (tool === undefined) {
+					if (incoming.toolName === '') throw new Error('Cursor tool call starts without a name');
 					tool = { id: incoming.toolCallId, name: incoming.toolName, input: '', complete: false };
 					this.#tools.set(tool.id, tool);
 					output.push({ type: 'tool-input-start', id: tool.id, toolName: tool.name });
-				} else if (tool.name !== incoming.toolName) {
+				} else if (incoming.toolName !== '' && tool.name !== incoming.toolName) {
 					throw new Error(`Cursor changed the name of streamed tool '${tool.id}'`);
 				} else if (tool.complete) {
 					throw new Error(`Cursor emitted data after completing tool '${tool.id}'`);
@@ -402,8 +400,7 @@ export class CursorResponseMapper {
 				input: tool.input,
 			});
 		}
-		const final =
-			this.#responseInfo === undefined ? [] : finalContent(this.#responseInfo, this.#allowedTools);
+		const final = this.#responseInfo === undefined ? [] : finalContent(this.#responseInfo);
 		const streamedContent = [...this.#content];
 		const finalTools = final.filter((part) => part.type === 'tool-call');
 		if (this.#tools.size > 0 && finalTools.length > 0) {

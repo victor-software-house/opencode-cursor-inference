@@ -25,6 +25,10 @@
 			"types": "./dist/plugin.d.mts",
 			"import": "./dist/plugin.mjs"
 		},
+		"./server": {
+			"types": "./dist/plugin.d.mts",
+			"import": "./dist/plugin.mjs"
+		},
 		"./provider": {
 			"types": "./dist/index.d.mts",
 			"import": "./dist/index.mjs"
@@ -83,6 +87,7 @@
 		}
 	},
 	"devDependencies": {
+		"@arethetypeswrong/core": "0.18.5",
 		"@biomejs/biome": "2.5.12",
 		"@bufbuild/protoc-gen-es": "2.14.1",
 		"@changesets/cli": "3.0.1",
@@ -91,9 +96,13 @@
 		"@commitlint/cli": "21.2.2",
 		"@commitlint/config-conventional": "21.2.2",
 		"@limegrass/eslint-plugin-import-alias": "1.6.1",
-		"@opencode-ai/plugin": "1.18.27",
+		"@opencode-ai/cli-v2": "npm:@opencode-ai/cli@0.0.0-beta-19086",
+		"@opencode-ai/plugin": "1.18.28",
+		"@opencode-ai/plugin-v2": "npm:@opencode-ai/plugin@0.0.0-beta-19086",
+		"@opencode-ai/schema-v2": "npm:@opencode-ai/schema@0.0.0-beta-19086",
 		"@types/bun": "1.4.0",
 		"@types/node": "26.4.1",
+		"@victor-software-house/pi-type-kit": "0.0.5",
 		"bun-release": "0.0.3",
 		"dedent": "1.7.2",
 		"knip": "6.34.0",
@@ -103,5 +112,8 @@
 		"publint": "0.3.24",
 		"tsdown": "0.23.0",
 		"typescript": "7.0.2"
-	}
+	},
+	"trustedDependencies": [
+		"@opencode-ai/cli"
+	]
 }

@@ -10,12 +10,17 @@ provider boundary, protocol, auth, catalog, or lifecycle.
 
 - OpenCode owns history, arbitrary tools, execution, continuation, sessions, branches, compaction, and
   transcript. The provider emits tool calls and never executes them.
-- Target the exact stable OpenCode contract recorded in the decisions. Do not silently adopt a
-  transitional plugin API.
+- OpenCode V2 beta `19086` is the design center; stable OpenCode `1.18.28` is a compatibility adapter.
+  Keep the hybrid root/`./server` contract and update either pin only through a recorded decision and
+  exact loader proof.
+- `@victor-software-house/pi-type-kit` is the only permitted private build dependency. Import exact
+  helpers, bundle and tree-shake them, keep GitHub Packages credentials distinct from release App
+  credentials, and prove private names/source paths are absent from every runtime artifact.
 - Credentials stay in OpenCode's auth store. Do not add another secret store or copy credentials into
   package-owned files.
-- Cache only normalized non-secret model metadata. Fail closed on incomplete catalog joins and
-  unsupported capabilities.
+- Cache only normalized non-secret model metadata from successful authenticated refreshes. Preserve
+  valid stale snapshots, never persist the pre-login Auto fallback, and fail closed on incomplete
+  catalog joins and unsupported capabilities.
 - Treat selected Cursor protobufs, headers, and behavior as versioned observations, not public API.
   Keep observed facts and design inferences distinct.
 - Never read an installed Cursor IDE or its storage to derive identity.

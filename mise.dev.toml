@@ -1,0 +1,4 @@
+# Loaded locally through .miserc.toml. CI supplies its dedicated package token directly.
+
+[env]
+PI_CURSOR_PACKAGES_TOKEN = { value = "{{ exec(command='gh auth token', cache_duration='4h') }}", tools = true }

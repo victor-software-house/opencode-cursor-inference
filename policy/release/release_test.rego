@@ -7,6 +7,10 @@ test_accepts_hardened_public_npm_release if {
 	count(release.deny) == 0 with input as valid_release
 }
 
+test_accepts_stacked_pull_request_ci if {
+	count(release.deny) == 0 with input as valid_ci
+}
+
 test_rejects_pull_request_target if {
 	broken := object.union(valid_release, {"on": {"push": {}, "pull_request_target": {}}})
 	some message in release.deny with input as broken
@@ -38,6 +42,21 @@ test_rejects_changesets_publish_input if {
 	broken := release_with_steps([app_token_step, broken_changesets, oidc_step, publish_step])
 	some message in release.deny with input as broken
 	message == "changesets/action must not publish through npm"
+}
+
+test_rejects_app_token_for_package_install if {
+	broken_job := object.union(valid_release.jobs.changesets, {
+		"env": {"PI_CURSOR_PACKAGES_TOKEN": "${{ steps.app-token.outputs.token }}"},
+	})
+	broken := object.union(valid_release, {"jobs": {"changesets": broken_job}})
+	some message in release.deny with input as broken
+	message == "Release package token must use the repository token"
+}
+
+test_rejects_pull_request_branch_filter if {
+	broken := object.union(valid_ci, {"on": {"push": {"branches": ["main"]}, "pull_request": {"branches": ["main"]}}})
+	some message in release.deny with input as broken
+	message == "CI pull_request must not filter branches"
 }
 
 test_rejects_long_lived_npm_token if {
@@ -103,9 +122,23 @@ valid_release := {
 			"permissions": {
 				"contents": "write",
 				"pull-requests": "write",
+				"packages": "read",
 				"id-token": "write",
 			},
+			"env": {"PI_CURSOR_PACKAGES_TOKEN": "${{ github.token }}"},
 			"steps": [app_token_step, changesets_step, oidc_step, publish_step],
+		},
+	},
+}
+
+valid_ci := {
+	"name": "CI",
+	"on": {"push": {"branches": ["main"]}, "pull_request": null},
+	"permissions": {"contents": "read", "packages": "read"},
+	"jobs": {
+		"verify": {
+			"env": {"PI_CURSOR_PACKAGES_TOKEN": "${{ github.token }}"},
+			"steps": [],
 		},
 	},
 }

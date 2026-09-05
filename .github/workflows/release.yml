@@ -16,6 +16,7 @@ env:
   GIT_CONFIG_COUNT: "1"
   GIT_CONFIG_KEY_0: init.defaultBranch
   GIT_CONFIG_VALUE_0: main
+  MISE_ENV: ci
   MISE_IGNORED_CONFIG_PATHS: ~/.config/mise/config.toml
 
 jobs:
@@ -25,7 +26,10 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      packages: read
       id-token: write
+    env:
+      PI_CURSOR_PACKAGES_TOKEN: ${{ github.token }}
     steps:
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
@@ -44,9 +48,6 @@ jobs:
 
       - name: Pre-publish gates
         run: mise run verify
-
-      - name: Pack dry-run
-        run: mise run pack:check
 
       - name: Mint Version Packages token
         id: app-token
