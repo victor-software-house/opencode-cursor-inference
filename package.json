@@ -51,7 +51,7 @@
 	"engines": {
 		"node": ">=24"
 	},
-	"packageManager": "bun@1.4.0",
+	"packageManager": "bun@1.4.4",
 	"devEngines": {
 		"runtime": {
 			"name": "node",
@@ -59,7 +59,7 @@
 		},
 		"packageManager": {
 			"name": "bun",
-			"version": ">=1.4.0 <2.0.0"
+			"version": ">=1.4.4 <2.0.0"
 		}
 	},
 	"publishConfig": {
@@ -100,7 +100,7 @@
 		"@opencode-ai/plugin": "1.18.28",
 		"@opencode-ai/plugin-v2": "npm:@opencode-ai/plugin@0.0.0-beta-19086",
 		"@opencode-ai/schema-v2": "npm:@opencode-ai/schema@0.0.0-beta-19086",
-		"@types/bun": "1.4.0",
+		"@types/bun": "1.4.3",
 		"@types/node": "26.4.1",
 		"@victor-software-house/pi-type-kit": "0.0.5",
 		"bun-release": "0.0.3",
