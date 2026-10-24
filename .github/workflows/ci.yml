@@ -1,9 +1,21 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  # The queue tests each entry on top of the ones ahead of it, so a push to
+  # main has already passed and runs nothing.
+  merge_group:
+  # A merge_group run saves its cache on its queue branch, which no pull
+  # request can restore from, so the daily refresh job dispatches this
+  # workflow on main, whose run saves the cache pull requests restore from.
+  schedule:
+    - cron: "37 8 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -17,7 +29,24 @@ env:
   MISE_IGNORED_CONFIG_PATHS: ~/.config/mise/config.toml
 
 jobs:
+  refresh:
+    if: github.event_name == 'schedule'
+    # One API call: a GitHub-hosted runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch CI on the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow_ref }}
+        run: |
+          workflow=${WORKFLOW%@*}
+          gh workflow run "${workflow##*/}" --repo "$REPOSITORY" --ref main
   verify:
+    if: ${{ !github.event.pull_request.draft && github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
     env:
       PI_CURSOR_PACKAGES_TOKEN: ${{ github.token }}
