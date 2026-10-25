@@ -48,7 +48,7 @@ run = "biome check ."
 [tasks."lint:oxlint"]
 hide = true
 depends = ["gen"]
-run = "bun --bun oxlint"
+run = "bun --bun oxlint --type-aware"
 
 [tasks."lint:actions"]
 hide = true
@@ -64,11 +64,19 @@ run = [
 [tasks."lint:fix"]
 description = "Apply Biome and oxlint fixes"
 depends = ["gen"]
-run = ["biome check --write .", "bun --bun oxlint --fix"]
+run = ["biome check --write .", "bun --bun oxlint --type-aware --fix"]
 
 [tasks.format]
 description = "Format repository files"
 run = "biome format --write ."
+
+[tasks."format:staged"]
+description = "Format the files given as arguments; the git hook passes the staged files"
+run = "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
+
+[tasks."lint:oxlint:staged"]
+description = "Syntactic oxlint --fix of the files given as arguments; no type information, no build"
+run = "bun --bun oxlint --fix"
 
 [tasks.typecheck]
 description = "Type-check source and tests"
@@ -119,10 +127,6 @@ run = [
   "gitleaks dir --redact --no-banner",
   "gitleaks git --redact --no-banner",
 ]
-
-[tasks."hooks:secrets:staged"]
-description = "Scan the staged diff for credentials"
-run = "gitleaks git --staged --redact --no-banner"
 
 [tasks.smoke]
 description = "Run isolated OpenCode smoke without Cursor network calls"

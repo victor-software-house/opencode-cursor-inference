@@ -1,7 +1,6 @@
 import { defineConfig } from 'oxlint';
 
 export default defineConfig({
-	options: { typeAware: true },
 	ignorePatterns: ['dist/**', '.pi/**'],
 	categories: {
 		correctness: 'error',

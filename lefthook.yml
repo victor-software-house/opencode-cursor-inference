@@ -1,32 +1,74 @@
+# Hooks are the cheap local tier: staged files and pushed commits only, no
+# build, test, typecheck or type-aware lint. The pull request's CI is the gate
+# and runs all of them. Every command runs with MISE_ENV=dev,hooks, from the
+# hookenv anchor on the first command; mise.hooks.toml keeps the bun deps
+# provider from installing inside a hook.
 pre-commit:
-  skip:
-    - run: test -n "$CI"
   commands:
-    format:
-      glob: '{,**/}*.{ts,js,mjs,json,jsonc,md,yml,yaml}'
-      run: mise run format -- {staged_files}
-      stage_fixed: true
-    secrets:
-      run: mise run hooks:secrets:staged
+    # Fixes run before formatting, so the formatter sees the fixed code.
     lint:
-      run: mise run lint
-    typecheck:
-      run: mise run typecheck
+      priority: 1
+      glob: '*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'
+      stage_fixed: true
+      env: &hookenv { MISE_ENV: 'dev,hooks' }
+      run: mise run lint:oxlint:staged {staged_files}
+    format:
+      priority: 2
+      glob: '*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,jsonc,md,yml,yaml}'
+      stage_fixed: true
+      env: *hookenv
+      run: mise run format:staged {staged_files}
+    staged-secrets:
+      env: *hookenv
+      run: mise run hooks:secrets:staged
 
 commit-msg:
-  skip:
-    - run: test -n "$CI"
   commands:
     commitlint:
+      env: *hookenv
       run: mise run commitlint -- {1}
 
 pre-push:
-  skip:
-    - run: test -n "$CI"
   commands:
+    # `mise lock --dry-run` writes and installs nothing; `mise install
+    # --locked` would download a missing tool.
+    lockfile:
+      env: *hookenv
+      run: |
+        if ! changes=$(mise lock --dry-run --json); then
+          echo "✘ mise lock --dry-run failed; see its error above"; exit 1
+        fi
+        if [ "$changes" != "[]" ]; then
+          printf '%s\n' "$changes"; echo "✘ a mise lockfile is stale: run mise lock"; exit 1
+        fi
     lockfile-sync:
+      env: *hookenv
       run: mise run --no-deps lockfile:sync
     version-guard:
+      env: *hookenv
       run: mise run --no-deps version-guard
-    verify:
-      run: mise run verify
+    # Scans each pushed commit the remote does not have yet, not the whole
+    # history; CI scans the history daily. git passes one `<local ref> <local
+    # sha> <remote ref> <remote sha>` line per ref on stdin; a delete (all-zero
+    # local sha) pushes nothing.
+    secrets:
+      env: *hookenv
+      use_stdin: true
+      run: |
+        zero=0000000000000000000000000000000000000000
+        while read -r _ lsha _ rsha; do
+          [ "$lsha" = "$zero" ] && continue
+          known=""
+          if [ "$rsha" != "$zero" ] && git cat-file -e "$rsha^{commit}" 2>/dev/null; then
+            known=$rsha
+          fi
+          mise run hooks:secrets:history --log-opts="$lsha --not --remotes $known" </dev/null || exit 1
+        done
+
+post-checkout:
+  commands:
+    worktree-setup:
+      run: |
+        if [ -f .git ]; then
+          lefthook install
+        fi
