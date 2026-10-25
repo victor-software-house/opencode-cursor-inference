@@ -1,0 +1,4 @@
+# Loaded inside git hooks, which set MISE_ENV=dev,hooks. A hook must not run
+# bun install: it checks the tree as it is.
+[deps]
+disable = ["bun"]
